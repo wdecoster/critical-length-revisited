@@ -10,3 +10,4 @@ logs/
 *.crai
 *.fastq.gz
 __pycache__/
+.vscode/
