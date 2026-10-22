@@ -1,8 +1,12 @@
 config/server.yaml
-*.tsv
-*.cram
-*.bam
-*.vcf.gz
+profiles/server/
 .snakemake/
 results/
 resources/
+logs/
+*.bam
+*.bai
+*.cram
+*.crai
+*.fastq.gz
+__pycache__/

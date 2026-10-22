@@ -1,0 +1,83 @@
+# Critical length revisited: stage 1 (data inventory, ladder steps 1-2). See docs/plan.md.
+# Server-specific settings (reference, output_root) go in config/server.yaml (scripts/setup_server.sh).
+
+outdir: results
+# relative outdir and resource paths are under output_root (e.g. a study folder)
+output_root: .
+# GRCh38 no-alt analysis set (with .fai), as in 2020
+reference: resources/GRCh38_no_alt_analysis_set.fa
+
+# HG002 truth: GIAB v5.0q (draft, from HG002-Q100 v1.1 by dipcall), stratifications v3.6
+truth:
+  giab_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/v5.0q
+  files:
+    HG002_GRCh38_v5.0q_stvar.vcf.gz: 34dbeeac5eb3fc09e94c5cb8cfe9e24f
+    HG002_GRCh38_v5.0q_stvar.benchmark.bed: 55fc11c80ff376c0a8da99d0c69004f3
+    dipcall_output/GRCh38_HG2-T2TQ100-V1.1_dipcall-z2k.dip.vcf.gz: 9a2ddc7af03fa89c6a356fd67fa31fef
+    dipcall_output/GRCh38_HG2-T2TQ100-V1.1_dipcall-z2k.dip.bed: b2d09d5d698e859ae06251061679d15a
+  stratifications_url: https://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/genome-stratifications/v3.6/GRCh38@all
+  stratifications:
+    tandem_repeats: LowComplexity/GRCh38_AllTandemRepeats.bed.gz
+    homopolymers: LowComplexity/GRCh38_AllHomopolymers_ge7bp_imperfectge11bp_slop5.bed.gz
+    segdups: SegmentalDuplications/GRCh38_segdups.bed.gz
+    segdups_gt10kb: SegmentalDuplications/GRCh38_segdups_gt10kb.bed.gz
+    low_mappability: Mappability/GRCh38_lowmappabilityall.bed.gz
+    all_difficult: Union/GRCh38_alldifficultregions.bed.gz
+
+# Assemblies reads are simulated from (ladder) and truth is derived from in the 2020 way. Haplotypes are
+# either separate files (hap1/hap2) or one diploid file split by the NCBI assembly report's assembly units.
+assemblies:
+  HG002_Q100:
+    hap1: https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/HG002/assemblies/hg002v1.1.mat.fasta.gz
+    hap2: https://s3-us-west-2.amazonaws.com/human-pangenomics/T2T/HG002/assemblies/hg002v1.1.pat.fasta.gz
+  # the 2020 assembly: FALCON-Phase, both phases in one GenBank assembly (units phase0, phase1)
+  HG00733_2020:
+    diploid: https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/003/634/875/GCA_003634875.1_HG00733_Phased_Diploid/GCA_003634875.1_HG00733_Phased_Diploid_genomic.fna.gz
+    report: https://ftp.ncbi.nlm.nih.gov/genomes/all/GCA/003/634/875/GCA_003634875.1_HG00733_Phased_Diploid/GCA_003634875.1_HG00733_Phased_Diploid_assembly_report.txt
+    units: [phase0, phase1]
+
+# HG002 ONT R10.4.1 read sets (public). Downloaded ones are kept (Arm A cuts them later); streamed ones are
+# only read for the inventory.
+read_sets:
+  ulk:
+    description: ONT London Calling 2024, SQK-ULK114, 2 PromethION flow cells, sup v5.0.0, unaligned BAM
+    urls:
+      - https://ont-open-data.s3.amazonaws.com/londoncalling2024/assembly/basecalling/ulk/PAW42495.bam
+      - https://ont-open-data.s3.amazonaws.com/londoncalling2024/assembly/basecalling/ulk/PAW42666.bam
+    download: true
+  standard:
+    description: ONT giab_2025.01, SQK-LSK114, 2 PromethION flow cells, sup, aligned BAM (index does not match; streamed without it)
+    urls:
+      - https://ont-open-data.s3.amazonaws.com/giab_2025.01/basecalling/sup/HG002/PAW70337/calls.sorted.bam
+      - https://ont-open-data.s3.amazonaws.com/giab_2025.01/basecalling/sup/HG002/PAW71238/calls.sorted.bam
+    download: false
+
+inventory:
+  # haploid genome size used to convert bases to coverage
+  genome_size: 3100000000
+  # lengths (bp) for the coverage that remains after cutting reads into pieces of that length
+  lengths: [1000, 2000, 3000, 5000, 7500, 10000, 15000, 20000, 30000, 50000, 75000, 100000, 150000, 200000, 300000, 500000]
+
+# Ladder steps 1-2 (docs/plan.md): the 2020 pipeline (SimLoRD fixed-length reads, minimap2 2.14 map-pb,
+# Sniffles 1.0.10, paftools truth, SURVIVOR/surpyvor-style matching) on HG00733 (2020) and HG002-Q100 v1.1
+ladder:
+  genomes: [HG00733_2020, HG002_Q100]
+  lengths: [1000, 5000, 20000, 50000, 100000, 300000, 500000]
+  # simulated coverage per genome (haploid-equivalent, even). HG00733 at 40x as in 2020 (step 1 reproduces
+  # Fig. 1); every genome is evaluated at each coverage of 'coverages' up to its simulated coverage,
+  # subsampled from it. Steps 1 and 2 are compared at 20x.
+  simulated_coverage:
+    HG00733_2020: 40
+    HG002_Q100: 20
+  coverages: [40, 20]
+  # alignments (~60 GB per 20x of CLR-like reads) are deleted once called, unless kept
+  keep_bams: false
+  # the assembly is split into this many chunks of whole sequences, simulated in parallel
+  chunks: 40
+  # Sniffles 1 settings: default as in 2020; splits1000 tests the split filter at the longest lengths
+  sniffles1:
+    default: {args: "", min_length: 0}
+    splits1000: {args: "--max_num_splits 1000", min_length: 100000}
+  # 2020 matching: SURVIVOR merge, distance 500, same type, min. length 50
+  match_distance: 500
+  min_sv_length: 50

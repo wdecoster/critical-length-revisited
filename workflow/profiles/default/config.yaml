@@ -1,0 +1,6 @@
+cores: 64
+software-deployment-method: [conda, apptainer]
+rerun-incomplete: true
+printshellcmds: true
+keep-going: true
+latency-wait: 30

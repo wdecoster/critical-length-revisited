@@ -1,0 +1,26 @@
+from snakemake.utils import min_version
+
+min_version("8.0")
+
+
+configfile: "config/config.yaml"
+
+
+include: "rules/common.smk"
+include: "rules/resources.smk"
+include: "rules/inventory.smk"
+include: "rules/ladder.smk"
+
+
+# Stage 1: data inventory, truth files, ladder steps 1-2
+rule all:
+    input:
+        inventory_targets(),
+        expand(os.path.join(RES, "giab", "{path}"), path=TRUTH_FILES),
+        expand(os.path.join(RES, "stratifications", "{strat}.bed.gz"), strat=STRATS),
+        os.path.join(OUT, "ladder", "summary_steps1-2.tsv"),
+
+
+rule inventory:
+    input:
+        inventory_targets(),

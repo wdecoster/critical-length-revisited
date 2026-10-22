@@ -1,0 +1,11 @@
+name: critical-length-revisited
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - python>=3.11
+  - snakemake>=9,<10
+  - pandas>=2
+  - pyyaml
+  - samtools>=1.21

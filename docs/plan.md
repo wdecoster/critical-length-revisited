@@ -23,7 +23,7 @@
 
 ## Truth
 
-- **HG002-Q100 v1.1**, a T2T diploid assembly with no gaps.
+- **HG002-Q100 v1.1**, a T2T diploid assembly. It is gap-free except for the centres of 9 of the 10 rDNA arrays.
   - The GIAB v5.0q benchmark is built from v1.1, so we simulate from v1.1 as well. The current version is v1.2 (Aug 2026), but reads and truth must agree.
 - **GIAB HG002 v5.0q SV benchmark, the primary truth.** Files: `HG002_GRCh38_v5.0q_stvar.vcf.gz` with `HG002_GRCh38_v5.0q_stvar.benchmark.bed`.
   - It is labelled a *Draft* and was made with dipcall (`-z200000,10000`) from Q100 v1.1. Pin the exact files with checksums.
@@ -60,11 +60,16 @@ What this does and does not change:
 - All L come from the same UL dataset, so library or flow cell is not confounded with L.
 - To check that the UL library behaves like a standard one, compare it against `giab_2025.01` at 10, 20 and 30 kb: cut both, and compare the curves.
 
-**Coverage limits:**
-- About 30x reaches roughly 50 kb.
-- 15–20x reaches roughly 100 kb.
-- The grid is run at 30x up to 50 kb and at 15x over the full range. That gives one consistent 15x curve, plus a 30x curve that is reliable up to 50 kb.
-- Exact limits are computed in milestone 1 from the read-length distribution.
+**Coverage limits** (from ONT's QC length histograms of the two ULK flow cells: 165 Gb, read N50 107 kb, about 53x; to be confirmed by the inventory rule):
+
+| Cut length | 20 kb | 30 kb | 50 kb | 75 kb | 100 kb | 150 kb | 200 kb | 300 kb |
+|---|---|---|---|---|---|---|---|---|
+| Coverage after cutting | 40x | 37x | 31x | 26x | 22x | 16x | 12x | 7x |
+
+- **The grid:**
+  - 30x up to 50 kb;
+  - 15x up to 150 kb.
+- **This changes the plan:** real reads cover the >150 kb question at 15x, and Arm B is needed only beyond 150 kb.
 
 **Length distributions (question 5):**
 - Cut to an empirical length distribution instead of a fixed L. The shapes come from public data: the standard `giab_2025.01` library and the UL library.
@@ -83,12 +88,12 @@ Simulator:
 - PBSIM3 (check that it ships an R10.4.1 error model) or Badread (`nanopore2023` model). Badread is slow at genome scale, and its chimera, junk and glitch rates must be set deliberately.
 - Validate against Arm A **per context**: identity, plus indel rates in homopolymers and TRs compared with non-repeat sequence. Neither simulator fully reproduces R10's systematic errors, and this is the main reason Arm A is the primary evidence.
 
-Lengths: the Arm A grid plus 300 kb. 500 kb and 1 Mb are used only in the ladder.
+Lengths: selected Arm A lengths for validation, plus 200 and 300 kb. 500 kb and 1 Mb are used only in the ladder.
 
 ### Length grid, coverage, replicates
 
 - **Lengths:** 1, 2, 3, 5, 7.5, 10, 15, 20, 30, 50, 75, 100, 150 kb (Arm A, as far as coverage allows), and 200 and 300 kb (Arm B).
-- **Coverage:** 15x for the full grid, and 30x up to 50 kb. Downsample rather than realign.
+- **Coverage:** 15x for the full grid (up to 150 kb), and 30x up to 50 kb. Downsample rather than realign.
 - **Replicates:** 3 random cut placements or seeds at 3 lengths (5, 20, 100 kb). Other uncertainty comes from a block bootstrap (1 Mb blocks).
 
 ## Analysis
@@ -124,7 +129,7 @@ Lengths: the Arm A grid plus 300 kb. 500 kb and 1 Mb are used only in the ladder
 ## The ladder (question 2)
 
 Each step changes one thing.
-- **Coverage:** constant at 20x throughout.
+- **Coverage:** constant at 20x throughout. HG00733 is also simulated at 40x, so that step 1 reproduces Fig. 1 under the 2020 conditions.
 - **Lengths:** 1, 5, 20, 50 and 100 kb (step 6 is limited by real-read coverage), plus 300 and 500 kb for steps 1–5.
 - **Output:** recall, precision and F1 per step. Five lengths are too few for a critical length.
 
