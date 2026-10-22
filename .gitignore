@@ -1,0 +1,8 @@
+config/server.yaml
+*.tsv
+*.cram
+*.bam
+*.vcf.gz
+.snakemake/
+results/
+resources/

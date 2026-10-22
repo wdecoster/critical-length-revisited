@@ -1,166 +1,231 @@
 # Replication plan: SV discovery vs read length, 2026 edition
 
-Scope:
+## Scope
+
 - SV discovery only; phasing comes later.
 - One genome, HG002.
-- ONT R10.4.1 only: no HiFi comparator, and no R9.
-- The repo goes public together with the blog post on [Gigabase or gigabyte](https://wdecoster.github.io/gigabaseorgigabyte/) (source in `~/repos/gigabaseorgigabyte`, Hugo).
+- ONT R10.4.1 only: no HiFi comparator, no R9.
+- The repo goes public together with a post on [Gigabase or gigabyte](https://wdecoster.github.io/gigabaseorgigabyte/).
 
 ## Questions
 
-1. **Critical length per stratum (main question).** For each SV stratum, find the read length beyond which SV discovery no longer improves, both in real ONT R10 data and in simulation. Strata are type, size, and context (TR, SD, low mappability, other).
-2. **Which old conclusions were artifacts?** How much of the 2020 curve came from the truth set, the CLR error model, the tools, and the lenient matching? This is the "one change at a time" ladder, built for the blog.
-3. **Sequence completeness of insertions.** For insertions of a given size, what read length is needed to get the *full inserted sequence* right, not just the breakpoint? This links to the ~18.8 kb RA insertion in TMEM106B.
-4. **The >150 kb decline.** Does it reproduce, and is it caused by the simulator's coverage near gaps or by Sniffles 1's `--max_num_splits`?
-5. **Translation to practice.** What do the curves mean for the read-length distributions we actually get? That means our cohort, standard and ultra-long libraries, and degraded DNA. See "Cohort read lengths" below.
+1. **Critical length per stratum (main question).** For each SV stratum, find the read length beyond which SV discovery no longer improves, in real ONT R10 data, with simulation as support. Strata are type, size, and context (TR, SD, low mappability, other).
+2. **Which old conclusions were artifacts?** How much of the 2020 curve came from:
+   - the truth set;
+   - the length-dependent CLR error model;
+   - the tools;
+   - the lenient matching?
 
-## Truth: HG002
+   This is the "ladder".
+3. **Sequence completeness of insertions.** For insertions of a given size, what read length is needed to get the *full inserted sequence* right, not just the breakpoint?
+4. **The >150 kb decline.** Does it reproduce, and is it caused by the simulator's coverage near contig ends and gaps, or by Sniffles 1's split filter?
+5. **Translation to practice.** How well does SV discovery do for read-length *distributions* as libraries actually produce them (cohort-like, standard, ultra-long, degraded), at a fixed coverage? Readers can act on this part most directly.
 
-- **HG002-Q100 v1.1:** a T2T diploid assembly with no gaps. This removes issue 1 (read source and truth sharing the same holes).
-- **GIAB v5.0q SV benchmark (`v5.0q_stvar`) on GRCh38, with its confident-region BED.** This is the primary truth. It is still labelled a *draft*, so check the release notes and pin the exact version. It excludes very large and complex SVs and CNVs.
-- **GIAB genomic stratifications (v3.6 or later) for GRCh38.** These cover tandem repeats and homopolymers, segmental duplications, low mappability, the MHC, difficult regions, and others.
-- **Secondary truth outside the confident regions:** our own dipcall/PAV-style calls of Q100 against GRCh38. These are needed to say *anything* about segmental duplications, where long reads should matter most. They are reported separately and labelled as less certain.
+## Truth
 
-## Reads: two arms
+- **HG002-Q100 v1.1**, a T2T diploid assembly with no gaps.
+  - The GIAB v5.0q benchmark is built from v1.1, so we simulate from v1.1 as well. The current version is v1.2 (Aug 2026), but reads and truth must agree.
+- **GIAB HG002 v5.0q SV benchmark, the primary truth.** Files: `HG002_GRCh38_v5.0q_stvar.vcf.gz` with `HG002_GRCh38_v5.0q_stvar.benchmark.bed`.
+  - It is labelled a *Draft* and was made with dipcall (`-z200000,10000`) from Q100 v1.1. Pin the exact files with checksums.
+  - It does **not** exclude complex SVs.
+  - It excludes SDs, satellites and TRs > 10 kb *only where the assembly-to-reference alignment breaks*, plus inversion regions (~37 Mb), gaps and their flanks.
+  - So part of the SD content is inside the benchmark regions, and SDs can be evaluated as a stratum, with the n reported.
+- **GIAB genomic stratifications (v3.6) for GRCh38.** These cover tandem repeats and homopolymers, segmental duplications, low mappability, the MHC, and difficult regions.
+- **Outside the benchmark regions:** GIAB's own `GRCh38_HG2-T2TQ100-V1.1_dipcall-z2k.dip.{vcf.gz,bed}`, reported as "assembly concordance", not as truth. We do not run our own dipcall/PAV.
+- **chrX and chrY:** included, and evaluated as haploid, as in the GIAB benchmark. Report them separately if they behave differently.
 
-### Arm A, real reads cut to length (main evidence)
+## Reads
 
-1. Take the longest HG002 R10.4.1 sup dataset(s) available. Candidates:
-   - ONT open data `giab_2025.01`, which is already used in the Tier 2 benchmark;
-   - an ONT ultra-long Kit 14 HG002 run;
-   - any HG002 UL R10 data used for Q100 / HPRC.
-   
-   I still need to check what exists, its coverage above 100 kb, and the basecaller version.
-2. For a target length L, cut every read of at least L into consecutive pieces of L, starting at a random offset, and discard the remainder. Then subsample to the target coverage.
-   - This keeps the real error profile, real coverage bias, and real chimeras, and changes only the length.
-   - A length filter would instead select reads of at least L and confound length with coverage.
-3. **Limit:** coverage at L is bounded by the total read length in reads of at least L. It must be measured to see how far the real arm reaches, probably 100–150 kb at 30x if an UL dataset is used. Beyond that we rely on Arm B.
-4. **Real length distributions:** the same cutting can reproduce empirical distributions as well as fixed lengths. Proposed profiles:
-   - our cohort's R10 runs (see below);
-   - a standard LSK114 run;
-   - an UL run;
-   - a "degraded" profile with N50 around 8 kb.
+### Arm A: real reads cut to length (main evidence)
 
-### Cohort read lengths (`cramino_metrics.tsv`, 489 samples)
+**Data:**
 
-The cramino summary gives yield, N50, median and mean length, and yield above 25 kb. "R10-like" below means a modal identity of at least 98.5%.
+| Dataset | Use | Notes |
+|---|---|---|
+| ONT London Calling 2024 HG002 ULK114, 2 flow cells, sup v5.0.0 (`s3://ont-open-data/londoncalling2024/`) | Main source | Reported by the review as about 165 Gb mapped, read N50 about 107 kb, roughly 28x in reads ≥ 100 kb. *To verify in milestone 1.* |
+| ONT `giab_2025.01` HG002, standard LSK114, 2 flow cells | Calibration at L ≤ 30 kb (see below) | |
+| `gm24385_2023.12` UL R10 (~40x, N50 ~91 kb) | Backup only | Older basecaller. Never merge with the main source. |
+
+**Cutting:**
+- For target length L, cut each read of at least L into ⌊len/L⌋ pieces of length L.
+- Place the pieces at random within the parent read, spreading the leftover bases randomly over the gaps. This wastes fewer bases than cutting from a random offset and discarding the remainder.
+- Give pieces unique names (`parent_k`), so no tool merges evidence across pieces.
+- Subsample to the target coverage, measured as aligned bases within the benchmark BED.
+
+What this does and does not change:
+- It keeps the real error profile, coverage bias and chimeras, and changes only the length. Interior cut points are placed at random relative to breakpoints, just like natural fragmentation.
+- Pieces lack *real* read-end artifacts: low-quality starts, adapter or transposase remnants, and fragmentation sequence bias. This slightly favours short L, and the post should say so.
+
+**One molecule pool:**
+- All L come from the same UL dataset, so library or flow cell is not confounded with L.
+- To check that the UL library behaves like a standard one, compare it against `giab_2025.01` at 10, 20 and 30 kb: cut both, and compare the curves.
+
+**Coverage limits:**
+- About 30x reaches roughly 50 kb.
+- 15–20x reaches roughly 100 kb.
+- The grid is run at 30x up to 50 kb and at 15x over the full range. That gives one consistent 15x curve, plus a 30x curve that is reliable up to 50 kb.
+- Exact limits are computed in milestone 1 from the read-length distribution.
+
+**Length distributions (question 5):**
+- Cut to an empirical length distribution instead of a fixed L.
+- Profiles:
+  - cohort-like R10 at the P10, median and P90 of N50 (from aggregate cohort statistics, see below);
+  - standard LSK114 (the `giab_2025.01` distribution);
+  - the UL distribution;
+  - a "degraded" profile with N50 of about 8 kb.
+- Plot SV performance against library N50 at fixed coverage.
+
+### Cohort read lengths (aggregate only)
+
+The source is cramino summaries of 489 in-house ONT samples: yield, N50, median and mean length, and yield above 25 kb. "R10-like" means a modal identity of at least 98.5%. The post will only use the aggregates below; confirm with the consortium that these may be published.
 
 | | R10-like (n=132) | R9-like (n=357) |
 |---|---|---|
 | N50, P10 / median / P90 (kb) | 8.9 / 16.1 / 21.1 | 14.4 / 19.9 / 24.7 |
 | Median read length, median (kb) | 6.8 | 11.6 |
-| Yield above 25 kb, median (Gb) | 17.6 | 28.8 |
-| Mean coverage, median | 38.7x | 34.1x |
 
-- **Our cohort sits right at or below the 2020 threshold.** The R10 runs, mostly frontal cortex, have shorter reads than the R9 runs. A tenth of them have an N50 below 9 kb. So the replication answers a concrete question for our own data.
-- **In the cohort, yield does not correlate with N50 (r = -0.01).** Within standard preparations, longer reads did not cost yield. Our data has no ultra-long runs, so the trade-off for ultra-long libraries cannot be estimated from it. If needed, we would take ultra-long yields from ONT or literature numbers and treat them as assumptions.
-- **The summary statistics are not enough to reproduce the shape of a distribution.**
-  - A lognormal fitted from median and mean underestimates N50 by about 24% (the observed tail is heavier).
-  - The plan is to define three profiles from the summary (cohort R10 at the P10, median and P90 of N50).
-  - For one representative sample per profile, we get the full read-length histogram with a read-only `cramino --hist` on the server, and replay it in Arm A.
+- **The cohort's R10 runs sit at or below the 2020 threshold.** Their median N50 is 16 kb, and a tenth are below 9 kb.
+- **Yield and N50 within chemistry:** r = 0.12 within R10 (the pooled r = −0.01 mixes chemistries). Within standard preparations, longer reads did not cost noticeable yield. Ultra-long yields cannot be estimated from this cohort, so the post does not do a cost model.
+- **Distribution shape:**
+  - A lognormal fitted from median and mean underestimates N50 by about 24% (the tails are heavier).
+  - For one representative sample per profile, we get the full read-length histogram with a read-only `cramino --hist` on the server, and keep only the histogram.
   - Fallback: a lognormal with parameters from the median and N50.
 
-### Arm B, simulation from the Q100 assembly (extends the length range, gives control)
+### Arm B: simulation from Q100 v1.1 (support and control)
 
-- **Simulator:** PBSIM3 with an ONT R10 error model, or Badread. Choose after a quick check that the simulated read identity and error mix (identity, homopolymer indels) match the Arm A reads after alignment.
-- **Lengths:** the same grid as Arm A plus 300 kb, 500 kb and 1 Mb. Both fixed lengths and lognormal distributions, simulated from both haplotypes.
-- **Gaps:** because the Q100 assembly has none, coverage near contig ends is only an issue at chromosome ends, which tests the explanation for the >150 kb decline in issue 2.
+Purpose:
+- an exact fixed-length grid without coverage limits;
+- the ladder;
+- the >150 kb question on a gap-free genome.
 
-### Length grid and coverage
+Simulator:
+- PBSIM3 (check that it ships an R10.4.1 error model) or Badread (`nanopore2023` model). Badread is slow at genome scale, and its chimera, junk and glitch rates must be set deliberately.
+- Validate against Arm A **per context**: identity, plus indel rates in homopolymers and TRs compared with non-repeat sequence. Neither simulator fully reproduces R10's systematic errors, and this is the main reason Arm A is the primary evidence.
 
-- **Lengths:** 0.5, 1, 2, 3, 5, 7.5, 10, 15, 20, 30, 50, 75, 100, 150 and 200 kb. Arm B adds 300 kb, 500 kb and 1 Mb.
-- **Coverage:** 30x (main) and 15x (clinical and cohort-like). Downsampling from the 30x BAM avoids realignment.
-- **Replicates:** 3 random offsets or seeds at 1, 5, 20, 100 and 500 kb, and 1 elsewhere. Uncertainty comes from bootstrapping over 1 Mb blocks.
+Lengths: the Arm A grid plus 300 kb. 500 kb and 1 Mb are used only in the ladder.
+
+### Length grid, coverage, replicates
+
+- **Lengths:** 1, 2, 3, 5, 7.5, 10, 15, 20, 30, 50, 75, 100, 150 kb (Arm A, as far as coverage allows), and 200 and 300 kb (Arm B).
+- **Coverage:** 15x for the full grid, and 30x up to 50 kb. Downsample rather than realign.
+- **Replicates:** 3 random cut placements or seeds at 3 lengths (5, 20, 100 kb). Other uncertainty comes from a block bootstrap (1 Mb blocks).
 
 ## Analysis
 
-- **Alignment:** a current minimap2 with `-x lr:hq`.
-- **Calling:** Sniffles2 is the main caller (current release, coverage-adaptive defaults). cuteSV is the second caller, to show the conclusion does not depend on one tool. Severus is optional.
-- **Assembly arm (undecided; my recommendation is to leave it out of the first post):** hifiasm in ONT mode or Verkko on Arm A data at a few lengths (10, 30, 100 kb), with SVs called from the assembly. This answers at what read length assembling beats calling from alignments, and for which classes.
+- **Alignment:** minimap2 (≥ 2.28, pinned) with `-x lr:hq`.
+- **Calling:**
+  - Sniffles2 is the main caller, with pinned version and coverage-adaptive defaults. Its MAPQ filter shapes behaviour in SDs, so record it.
+  - cuteSV runs at 3 lengths, as a check that the result does not depend on one tool. It uses ONT-recommended clustering settings, and a minimum support scaled to coverage (its default `-s` is fixed, the 2020 flaw again).
+- **Assembly arm:** undecided. My recommendation is to leave it out of the first post; it could become a follow-up.
 
 ## Evaluation
 
-- **truvari bench** in the GIAB confident regions, with `--dup-to-ins` and default sequence and size similarity. Repeats are harmonised with `truvari refine`. Genotype concordance is reported too.
-- **The 2020 matcher, run on the same calls:** type only, 500 bp, no size or sequence check. This shows the leniency effect directly.
+- **Primary scoring:** GIAB's recommended setup, `truvari bench --pick ac --passonly -r 2000 -C 5000` followed by `truvari refine`. First remove `ALT="*"` records. Genotype concordance is reported too.
+- **Lenient secondary scoring:** for questions where only the event matters, `--dup-to-ins --pctseq 0`. DUP calls have no sequence, so `--dup-to-ins` only makes sense without sequence matching.
+- **The 2020 matcher on the same calls:** SURVIVOR site-based, type only, 500 bp. This shows the leniency directly.
 - **Strata:**
-  - type: DEL, INS, INV, DUP→INS;
+  - type: DEL, INS, INV;
   - size: 50–100, 100–300 (Alu), 300 bp–1 kb, 1–6 kb, 6–10 kb (L1), 10–50 kb, ≥ 50 kb;
   - context: TR, SD, low mappability, other.
-- **Insertion completeness:** for true-positive insertions, the sequence identity of the called ALT to the truth, and the fraction that are full-length (identity ≥ 0.95 and length within 5%), plotted against insertion size / L.
-- **Breakpoint and size accuracy** of true positives.
-- **Critical length:** the smallest L with an F1 of at least 99% (and 95%) of that stratum's plateau, with a bootstrap 95% CI. Reported as a table of L per stratum, which is the main figure for the blog.
+
+  Report n per stratum. Strata with few events (≥ 50 kb, INV, SD) are merged or shown with CIs only.
+- **Recall and precision separately,** not only F1.
+- **Mechanistic view:** recall against the number of reads that fully span the SV plus 1 kb of flank. This is cheap and explains *why* each stratum saturates where it does.
+- **Insertion completeness:**
+  - Strict matching censors truncated insertions: they become an FN plus an FP. So completeness is computed from a relaxed match (`-P 0 -O 0`, or the nearest insertion within 1 kb).
+  - Measures: ALT length relative to the truth, and sequence identity.
+  - Shown as a function of insertion size relative to L.
+- **Critical length:**
+  - Fit a saturating curve per stratum (isotonic, or log-logistic in log L).
+  - The critical length is the smallest L whose recall (and F1) is not significantly below the plateau. Test this with a *paired* block bootstrap across L: the same blocks for every L.
+  - Report it as a table with 95% CIs. A plain "maximum" plateau would bias the critical length upwards.
 
 ## The ladder (question 2)
 
-Each step changes one thing, at 5 selected lengths (1, 5, 20, 100, 500 kb):
+Each step changes one thing.
+- **Coverage:** constant at 20x throughout.
+- **Lengths:** 1, 5, 20, 50 and 100 kb (step 6 is limited by real-read coverage), plus 300 and 500 kb for steps 1–5.
+- **Output:** recall, precision and F1 per step. Five lengths are too few for a critical length.
 
-1. **The original pipeline on HG00733**, reproducing Fig. 1. The original assembly, GCA_003634875.1, is still available. This is a sanity check that we can reproduce 2020.
-2. **Same pipeline, HG002-Q100 instead of HG00733,** scored with the 2020 matcher. This step changes the truth and the read source.
-3. **Change the evaluation to truvari**, with confident regions and sequence matching.
-4. **Change the reads to the R10 error model** (Arm B simulation).
-5. **Change the tools** to current minimap2 `lr:hq` and Sniffles2.
-6. **Change to real reads** (Arm A).
+1. **The original pipeline on HG00733,** reproducing Fig. 1 as a sanity check. Verify that GCA_003634875.1 is the phased haplotype set used in 2020.
+2. **Same pipeline, HG002-Q100 v1.1 instead of HG00733,** with the 2020 matcher. This step changes the truth and the read source. The genome is gap-free, which tests the gap explanation for the >150 kb decline.
+3. **Evaluation changed to truvari,** with benchmark regions and one-to-one, sequence-aware matching.
+4. **Reads changed to an R10 error model,** with constant error across lengths. This removes both the CLR error model and the confounding of error with length.
+5. **Tools changed** to minimap2 `lr:hq` and Sniffles2.
+6. **Real reads** (Arm A).
 
-At each step, report the critical length (all SVs) and the >150 kb behaviour. Also test step 1 with Sniffles 1 `--max_num_splits 1000`, and plot per-SV coverage against distance to a contig gap.
+Notes:
+- **Attribution depends on the order of the steps.** To show how large that effect is, a 2×2 (error model × tools) is run at 5 and 50 kb.
+- **Side tests at step 1:**
+  - Sniffles 1 with `--max_num_splits 1000`;
+  - per-SV coverage against the distance to a contig end or gap.
 
-## Compute (rough, to check on a pilot)
+## Pilot and compute
 
-- **Main grid:** about 15 lengths × 2 arms × 2 coverages (downsampled) × (1–3 replicates), so roughly 80 alignments of 30x genome-wide data.
-- **Cost of a full genome:** at about 100 core-hours per 30x alignment, the full genome is about 8–10k core-hours.
-- **Pilot first, on 20% of the genome:** chr1, chr7, chr15, chr16 (SD-rich) and chr20 (well-behaved).
-  - In Arm A, select reads whose *parent* read maps to these chromosomes, but align the pieces to the whole genome so that mismapping is still possible.
-  - Arm B simulates only these chromosomes but aligns to the whole genome.
-- **Decision point:** after the pilot, decide whether the genome-wide run is needed for the blog. Probably only for the SD stratum.
-- **Storage:** CRAM, and delete the cut FASTQs after alignment, as in the Tier 2 benchmark.
+**Pilot region:** chr1, chr7, chr15, chr16 (SD-rich) and chr20 (well-behaved), about 20% of the genome.
+
+**SD-stratum bias:** selecting reads by where their parent maps removes reads from paralogous copies on other chromosomes. Those are exactly the reads that would mismap into the pilot's SDs, so false positives in the SD stratum would be underestimated.
+- In the pilot, also include parent reads that map to the SD paralog partners of the pilot SDs (from the GIAB SD stratification).
+- Run genome-wide at 4 lengths (2, 10, 30, 100 kb) for the SD stratum.
+- Pieces are always aligned to the whole genome.
+- Arm B uses the same approach.
+
+**Estimate:**
+- About 100 core-hours per 30x genome-wide alignment, less at 15x and in the pilot.
+- `truvari refine` can take hours per call set.
+- Badread can be slow, so prefer PBSIM3 if it validates.
+- Storage: about 30–50 GB per 30x CRAM, roughly 3–4 TB in total if everything is kept. Keep VCFs and summaries; delete the cut FASTQs and the BAMs/CRAMs after calling, except at a few lengths kept for figures.
 
 ## Workflow
 
-A Snakemake workflow in this repo, following the regional-pangenome and ont-phasing-benchmark conventions:
-
-- server profile;
-- `output_root` in the study folder;
-- `setup_server.sh`;
+A Snakemake workflow in this repo, with:
+- a server profile;
+- an `output_root` outside the repo;
+- `scripts/setup_server.sh`;
 - a pinned conda env per tool.
 
-Proposed layout:
+Server paths only go in an uncommitted `config/server.yaml`. The read-cutting step is written as a small standalone tool and released with the post.
 
 ```
-config/        config.yaml (grid, data sources, truth versions)
-workflow/      rules: data, cut_reads, simulate, align, call, truth, evaluate, ladder, plots
+config/        config.yaml (grid, public data sources, truth versions + checksums)
+workflow/      rules: data, cut_reads, simulate, align, call, evaluate, ladder, plots
 docs/          assessment.md, plan.md, blog draft
 notebooks/     figures for the blog
 ```
 
 ## Milestones
 
-1. **Data inventory:**
-   - HG002 R10 datasets, their read-length distributions, and the achievable coverage per L.
-   - Pin the truth versions.
-   - Get three cohort read-length histograms.
-2. **Ladder steps 1–2:** reproduce 2020, then swap the truth. This is a quick, cheap way to check that the critique holds.
-3. **Pilot grid, Arms A and B, on 20% of the genome.**
-4. **Assess, then decide** on running genome-wide and on the assembly arm.
+1. **Data inventory.**
+   - Verify the LC2024 UL and `giab_2025.01` datasets: read-length distributions, basecaller versions, and achievable coverage per L. Fix the coverage grid from these.
+   - Download and checksum the truth files and stratifications.
+   - Get the cohort histograms.
+2. **Ladder steps 1–2.** Reproduce 2020, then swap in HG002. This cheaply checks the main critique and the >150 kb explanation.
+3. **Pilot:** Arm A at 15x over the grid, the SD paralog extension, simulator validation, and Arm B at selected lengths.
+4. **Assess,** then the genome-wide SD runs, the remaining ladder steps, and the distribution profiles.
 5. **Figures and blog draft.**
 
-## Proposed blog outline
+## Blog: core figures
 
-1. What the 2020 paper said and why the question still matters.
-2. What we can do now that we couldn't then: a T2T diploid truth, R10 accuracy, and current tools.
-3. The ladder: which parts of the old curve were real and which were artifacts.
-4. The new answer: critical length per SV class, plus the classes that keep improving.
-5. Practical guidance on library choice, ultra-long or not, and degraded samples.
+1. **The ladder:** which parts of the old curve were real and which were artifacts, including the confounding of error with length.
+2. **Real-read recall against L per stratum,** with the spanning-reads explanation.
+3. **A table of critical lengths with CIs per stratum,** plus the classes that keep improving.
+4. **SV performance against library N50 / distribution at fixed coverage:** practical guidance, including where a cohort like ours sits.
 
 ## Decisions (2026-10-22)
 
 - **HG002 only, ONT only.**
-- **Cohort read lengths come from `cramino_metrics.tsv`,** plus histograms of three representative samples.
-- **Assembly-based calling is undecided.** It is a different question (what read length is needed to *assemble* rather than *call*), and expensive. Decide after the pilot; it could become a follow-up post.
-- **The blog appears on Gigabase or gigabyte, and the repo becomes public.** Because the repo will be public:
+- **Cohort read lengths from cramino summaries,** aggregates only, plus three histograms.
+- **Assembly-based calling undecided;** decide after the pilot.
+- **Public repo.** It contains:
   - only public data;
-  - no cohort sample IDs, only aggregate statistics of read length;
-  - no server paths in committed config (keep those in a `server.yaml` that is not committed).
+  - no cohort sample IDs or tissue details, only aggregate read-length statistics, after checking these may be published;
+  - no references to unpublished results or internal projects;
+  - no server paths.
+
+  Before publication, grep the full git history for sample-ID prefixes.
 
 ## Still open
 
-- **Which HG002 R10 datasets to use** (milestone 1). Arm A needs enough coverage in reads of 100 kb and longer.
-- **Whether a genome-wide run is needed** after the pilot.
+- Verification of the UL dataset and the final coverage grid (milestone 1).
+- Whether the cohort aggregates may be published.
+- The assembly arm.
