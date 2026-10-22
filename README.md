@@ -2,7 +2,7 @@
 
 This repo revisits [De Coster et al. 2020, *Critical length in long-read resequencing*](https://doi.org/10.1093/nargab/lqz027) (NAR Genom Bioinform 2(1):lqz027) with current data and tools, for a follow-up post on [Gigabase or gigabyte](https://wdecoster.github.io/gigabaseorgigabyte/). The first focus is structural variant discovery; phasing comes later.
 
-- [docs/assessment.md](docs/assessment.md): a critical assessment of the original SV methods.
+- [docs/assessment.md](docs/assessment.md): notes on the 2020 SV methods, and what to change for the replication.
 - [docs/plan.md](docs/plan.md): the replication plan. It uses the HG002 Q100 truth, ONT R10 reads (real reads cut to length, plus simulation), Sniffles2 and cuteSV, and stratified truvari evaluation.
 
 The original code is at https://github.com/wdecoster/read_length_SV_discovery.
@@ -16,7 +16,7 @@ The Snakemake workflow currently covers milestones 1–2 of the plan:
   - makes read-length histograms of the ultra-long and standard read sets;
   - computes the coverage left after cutting reads to each length (`results/inventory/`).
 - **Truth:** downloads and checksums the GIAB HG002 v5.0q SV benchmark, the GIAB dipcall output and the stratifications.
-- **Ladder steps 1–2:** the 2020 pipeline, unchanged, on the 2020 HG00733 assembly and on HG002-Q100 v1.1:
+- **Then and now, steps 1–2:** the 2020 pipeline, unchanged, on the 2020 HG00733 assembly and on HG002-Q100 v1.1:
   - SimLoRD 1.0.2;
   - minimap2 2.14 `map-pb`;
   - Sniffles 1.0.10;

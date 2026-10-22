@@ -1,4 +1,4 @@
-# Ladder steps 1-2 (docs/plan.md): the 2020 pipeline, unchanged, on HG00733 (the 2020 assembly) and on
+# Then and now, steps 1-2 (docs/plan.md; called the ladder in file and rule names): the 2020 pipeline, unchanged, on HG00733 (the 2020 assembly) and on
 # HG002-Q100 v1.1. Reads: SimLoRD 1.0.2 fixed-length reads with its default (multi-pass PacBio) error model,
 # simulated from both haplotypes (--without-ns), aligned with minimap2 2.14 map-pb, SVs called with
 # Sniffles 1.0.10. Truth: the assembly haplotypes aligned to GRCh38 (minimap2 2.14 asm5, as dipcall) and

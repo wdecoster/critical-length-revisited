@@ -10,16 +10,10 @@
 ## Questions
 
 1. **Critical length per stratum (main question).** For each SV stratum, find the read length beyond which SV discovery no longer improves, in real ONT R10 data, with simulation as support. Strata are type, size, and context (TR, SD, low mappability, other).
-2. **Which old conclusions were artifacts?** How much of the 2020 curve came from:
-   - the truth set;
-   - the length-dependent CLR error model;
-   - the tools;
-   - the lenient matching?
+2. **Sequence completeness of insertions.** For insertions of a given size, what read length is needed to get the *full inserted sequence* right, not just the breakpoint?
+3. **Translation to practice: when is long long enough?** How well does SV discovery do as a function of library N50, using realistic distribution shapes at a fixed coverage? Readers can act on this part most directly.
 
-   This is the "ladder".
-3. **Sequence completeness of insertions.** For insertions of a given size, what read length is needed to get the *full inserted sequence* right, not just the breakpoint?
-4. **The >150 kb decline.** Does it reproduce, and is it caused by the simulator's coverage near contig ends and gaps, or by Sniffles 1's split filter?
-5. **Translation to practice: when is long long enough?** How well does SV discovery do as a function of library N50, using realistic distribution shapes at a fixed coverage? Readers can act on this part most directly.
+**Context, not a focus:** a short "then and now" comparison with the 2020 result (see below). It briefly sets the record straight where needed, such as the decline above 150 kb, without dwelling on the 2020 methods.
 
 ## Truth
 
@@ -81,14 +75,14 @@ What this does and does not change:
 
 Purpose:
 - an exact fixed-length grid without coverage limits;
-- the ladder;
+- the then-and-now comparison;
 - the >150 kb question on a gap-free genome.
 
 Simulator:
 - PBSIM3 (check that it ships an R10.4.1 error model) or Badread (`nanopore2023` model). Badread is slow at genome scale, and its chimera, junk and glitch rates must be set deliberately.
 - Validate against Arm A **per context**: identity, plus indel rates in homopolymers and TRs compared with non-repeat sequence. Neither simulator fully reproduces R10's systematic errors, and this is the main reason Arm A is the primary evidence.
 
-Lengths: selected Arm A lengths for validation, plus 200 and 300 kb. 500 kb and 1 Mb are used only in the ladder.
+Lengths: selected Arm A lengths for validation, plus 200 and 300 kb. Lengths above 300 kb are not needed.
 
 ### Length grid, coverage, replicates
 
@@ -126,25 +120,15 @@ Lengths: selected Arm A lengths for validation, plus 200 and 300 kb. 500 kb and 
   - The critical length is the smallest L whose recall (and F1) is not significantly below the plateau. Test this with a *paired* block bootstrap across L: the same blocks for every L.
   - Report it as a table with 95% CIs. A plain "maximum" plateau would bias the critical length upwards.
 
-## The ladder (question 2)
+## Then and now (context)
 
-Each step changes one thing.
-- **Coverage:** constant at 20x throughout. HG00733 is also simulated at 40x, so that step 1 reproduces Fig. 1 under the 2020 conditions.
-- **Lengths:** 1, 5, 20, 50 and 100 kb (step 6 is limited by real-read coverage), plus 300 and 500 kb for steps 1–5.
-- **Output:** recall, precision and F1 per step. Five lengths are too few for a critical length.
+A small comparison that places the new recommendation next to the 2020 one. It is not a step-by-step attribution.
 
-1. **The original pipeline on HG00733,** reproducing Fig. 1 as a sanity check. Verify that GCA_003634875.1 is the phased haplotype set used in 2020.
-2. **Same pipeline, HG002-Q100 v1.1 instead of HG00733,** with the 2020 matcher. This step changes the truth and the read source. The genome is gap-free, which tests the gap explanation for the >150 kb decline.
-3. **Evaluation changed to truvari,** with benchmark regions and one-to-one, sequence-aware matching.
-4. **Reads changed to an R10 error model,** with constant error across lengths. This removes both the CLR error model and the confounding of error with length.
-5. **Tools changed** to minimap2 `lr:hq` and Sniffles2.
-6. **Real reads** (Arm A).
+1. **The 2020 pipeline on HG00733,** as a check that the 2020 curve is reproduced (40x and 20x). Verify that GCA_003634875.1 is the phased haplotype set used in 2020.
+2. **The same pipeline on HG002-Q100 v1.1 (20x),** which is gap-free apart from the rDNA arrays. This shows whether the decline above 150 kb came from the simulation. A side test runs Sniffles 1 with `--max_num_splits 1000` at 100 kb and above.
+3. **The 2026 curve** from the main analysis (real R10 reads, current tools, GIAB truth) at the same coverage.
 
-Notes:
-- **Attribution depends on the order of the steps.** To show how large that effect is, a 2×2 (error model × tools) is run at 5 and 50 kb.
-- **Side tests at step 1:**
-  - Sniffles 1 with `--max_num_splits 1000`;
-  - per-SV coverage against the distance to a contig end or gap.
+**Output:** one figure with the three curves, and one or two sentences in the post. These already run in stage 1 (steps 1–2); step 3 comes free with the main analysis.
 
 ## Pilot and compute
 
@@ -184,21 +168,24 @@ notebooks/     figures for the blog
 1. **Data inventory.**
    - Verify the LC2024 UL and `giab_2025.01` datasets: read-length distributions, basecaller versions, and achievable coverage per L. Fix the coverage grid from these.
    - Download and checksum the truth files and stratifications.
-2. **Ladder steps 1–2.** Reproduce 2020, then swap in HG002. This cheaply checks the main critique and the >150 kb explanation.
+2. **Then and now, steps 1–2.** Reproduce 2020, then run the same pipeline on HG002.
 3. **Pilot:** Arm A at 15x over the grid, the SD paralog extension, simulator validation, and Arm B at selected lengths.
-4. **Assess,** then the genome-wide SD runs, the remaining ladder steps, and the distribution profiles.
+4. **Assess,** then the genome-wide SD runs and the distribution profiles.
 5. **Figures and blog draft.**
 
 ## Blog: core figures
 
-1. **The ladder:** which parts of the old curve were real and which were artifacts, including the confounding of error with length.
-2. **Real-read recall against L per stratum,** with the spanning-reads explanation.
-3. **A table of critical lengths with CIs per stratum,** plus the classes that keep improving.
-4. **SV performance against library N50 at fixed coverage:** the general recommendation of when reads are long enough, per SV class.
+The post leads with the recommendation; 2020 is context.
+
+1. **SV performance against library N50 at fixed coverage:** the general recommendation of when reads are long enough, per SV class.
+2. **A table of critical lengths with CIs per stratum,** plus the classes that keep improving.
+3. **Real-read recall against L per stratum,** with the spanning-reads explanation.
+4. **Then and now:** the 2020 curve, the same pipeline on HG002, and the 2026 curve, in one figure with a short caption.
 
 ## Decisions (2026-10-22)
 
 - **HG002 only, ONT only.**
+- **Focus on the new recommendation.** The 2020 paper is context: set the record straight briefly where needed, without emphasising its limitations.
 - **No cohort-specific analysis.** The recommendation is general, as a function of N50. Aggregate read-length statistics may be quoted for context; publishing them is fine.
 - **Assembly-based calling undecided;** decide after the pilot.
 - **Public repo.** It contains:
