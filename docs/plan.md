@@ -19,7 +19,7 @@
    This is the "ladder".
 3. **Sequence completeness of insertions.** For insertions of a given size, what read length is needed to get the *full inserted sequence* right, not just the breakpoint?
 4. **The >150 kb decline.** Does it reproduce, and is it caused by the simulator's coverage near contig ends and gaps, or by Sniffles 1's split filter?
-5. **Translation to practice.** How well does SV discovery do for read-length *distributions* as libraries actually produce them (cohort-like, standard, ultra-long, degraded), at a fixed coverage? Readers can act on this part most directly.
+5. **Translation to practice: when is long long enough?** How well does SV discovery do as a function of library N50, using realistic distribution shapes at a fixed coverage? Readers can act on this part most directly.
 
 ## Truth
 
@@ -67,29 +67,10 @@ What this does and does not change:
 - Exact limits are computed in milestone 1 from the read-length distribution.
 
 **Length distributions (question 5):**
-- Cut to an empirical length distribution instead of a fixed L.
-- Profiles:
-  - cohort-like R10 at the P10, median and P90 of N50 (from aggregate cohort statistics, see below);
-  - standard LSK114 (the `giab_2025.01` distribution);
-  - the UL distribution;
-  - a "degraded" profile with N50 of about 8 kb.
-- Plot SV performance against library N50 at fixed coverage.
-
-### Cohort read lengths (aggregate only)
-
-The source is cramino summaries of 489 in-house ONT samples: yield, N50, median and mean length, and yield above 25 kb. "R10-like" means a modal identity of at least 98.5%. The post will only use the aggregates below; confirm with the consortium that these may be published.
-
-| | R10-like (n=132) | R9-like (n=357) |
-|---|---|---|
-| N50, P10 / median / P90 (kb) | 8.9 / 16.1 / 21.1 | 14.4 / 19.9 / 24.7 |
-| Median read length, median (kb) | 6.8 | 11.6 |
-
-- **The cohort's R10 runs sit at or below the 2020 threshold.** Their median N50 is 16 kb, and a tenth are below 9 kb.
-- **Yield and N50 within chemistry:** r = 0.12 within R10 (the pooled r = −0.01 mixes chemistries). Within standard preparations, longer reads did not cost noticeable yield. Ultra-long yields cannot be estimated from this cohort, so the post does not do a cost model.
-- **Distribution shape:**
-  - A lognormal fitted from median and mean underestimates N50 by about 24% (the tails are heavier).
-  - For one representative sample per profile, we get the full read-length histogram with a read-only `cramino --hist` on the server, and keep only the histogram.
-  - Fallback: a lognormal with parameters from the median and N50.
+- Cut to an empirical length distribution instead of a fixed L. The shapes come from public data: the standard `giab_2025.01` library and the UL library.
+- Each shape is rescaled to a grid of N50 values: 5, 8, 10, 15, 20, 30, 50 and 100 kb.
+- Plot SV performance against library N50 at fixed coverage. This is the general "when is long long enough" recommendation, so no cohort-specific profiles.
+- If a sentence helps place the recommendation, quote typical N50 values of real runs (public or aggregate, e.g. "standard brain-tissue libraries often have an N50 of 10–20 kb"). There is no separate analysis of our cohort.
 
 ### Arm B: simulation from Q100 v1.1 (support and control)
 
@@ -198,7 +179,6 @@ notebooks/     figures for the blog
 1. **Data inventory.**
    - Verify the LC2024 UL and `giab_2025.01` datasets: read-length distributions, basecaller versions, and achievable coverage per L. Fix the coverage grid from these.
    - Download and checksum the truth files and stratifications.
-   - Get the cohort histograms.
 2. **Ladder steps 1–2.** Reproduce 2020, then swap in HG002. This cheaply checks the main critique and the >150 kb explanation.
 3. **Pilot:** Arm A at 15x over the grid, the SD paralog extension, simulator validation, and Arm B at selected lengths.
 4. **Assess,** then the genome-wide SD runs, the remaining ladder steps, and the distribution profiles.
@@ -209,16 +189,16 @@ notebooks/     figures for the blog
 1. **The ladder:** which parts of the old curve were real and which were artifacts, including the confounding of error with length.
 2. **Real-read recall against L per stratum,** with the spanning-reads explanation.
 3. **A table of critical lengths with CIs per stratum,** plus the classes that keep improving.
-4. **SV performance against library N50 / distribution at fixed coverage:** practical guidance, including where a cohort like ours sits.
+4. **SV performance against library N50 at fixed coverage:** the general recommendation of when reads are long enough, per SV class.
 
 ## Decisions (2026-10-22)
 
 - **HG002 only, ONT only.**
-- **Cohort read lengths from cramino summaries,** aggregates only, plus three histograms.
+- **No cohort-specific analysis.** The recommendation is general, as a function of N50. Aggregate read-length statistics may be quoted for context; publishing them is fine.
 - **Assembly-based calling undecided;** decide after the pilot.
 - **Public repo.** It contains:
   - only public data;
-  - no cohort sample IDs or tissue details, only aggregate read-length statistics, after checking these may be published;
+  - no cohort sample IDs;
   - no references to unpublished results or internal projects;
   - no server paths.
 
@@ -227,5 +207,4 @@ notebooks/     figures for the blog
 ## Still open
 
 - Verification of the UL dataset and the final coverage grid (milestone 1).
-- Whether the cohort aggregates may be published.
 - The assembly arm.
