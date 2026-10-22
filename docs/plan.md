@@ -1,6 +1,10 @@
 # Replication plan: SV discovery vs read length, 2026 edition
 
-Scope: SV discovery only (phasing comes later). ONT R10.4.1 only, since R9 is no longer relevant for new work.
+Scope:
+- SV discovery only; phasing comes later.
+- One genome, HG002.
+- ONT R10.4.1 only: no HiFi comparator, and no R9.
+- The repo goes public together with the blog post on [Gigabase or gigabyte](https://wdecoster.github.io/gigabaseorgigabyte/) (source in `~/repos/gigabaseorgigabyte`, Hugo).
 
 ## Questions
 
@@ -8,7 +12,7 @@ Scope: SV discovery only (phasing comes later). ONT R10.4.1 only, since R9 is no
 2. **Which old conclusions were artifacts?** How much of the 2020 curve came from the truth set, the CLR error model, the tools, and the lenient matching? This is the "one change at a time" ladder, built for the blog.
 3. **Sequence completeness of insertions.** For insertions of a given size, what read length is needed to get the *full inserted sequence* right, not just the breakpoint? This links to the ~18.8 kb RA insertion in TMEM106B.
 4. **The >150 kb decline.** Does it reproduce, and is it caused by the simulator's coverage near gaps or by Sniffles 1's `--max_num_splits`?
-5. **Translation to practice (optional).** What do the curves mean for real read-length distributions (sheared, standard, ultra-long, degraded DNA)? Does the lower yield of ultra-long libraries cancel out their benefit at a fixed flow-cell budget?
+5. **Translation to practice.** What do the curves mean for the read-length distributions we actually get? That means our cohort, standard and ultra-long libraries, and degraded DNA. See "Cohort read lengths" below.
 
 ## Truth: HG002
 
@@ -16,7 +20,6 @@ Scope: SV discovery only (phasing comes later). ONT R10.4.1 only, since R9 is no
 - **GIAB v5.0q SV benchmark (`v5.0q_stvar`) on GRCh38, with its confident-region BED.** This is the primary truth. It is still labelled a *draft*, so check the release notes and pin the exact version. It excludes very large and complex SVs and CNVs.
 - **GIAB genomic stratifications (v3.6 or later) for GRCh38.** These cover tandem repeats and homopolymers, segmental duplications, low mappability, the MHC, difficult regions, and others.
 - **Secondary truth outside the confident regions:** our own dipcall/PAV-style calls of Q100 against GRCh38. These are needed to say *anything* about segmental duplications, where long reads should matter most. They are reported separately and labelled as less certain.
-- **Possible second genome:** HG00733 (HPRC release 2 assembly, plus ONT UL data). It gives continuity with the original paper. There is no GIAB benchmark for it, so its assembly-derived truth would be weaker. *To discuss.*
 
 ## Reads: two arms
 
@@ -33,10 +36,29 @@ Scope: SV discovery only (phasing comes later). ONT R10.4.1 only, since R9 is no
    - A length filter would instead select reads of at least L and confound length with coverage.
 3. **Limit:** coverage at L is bounded by the total read length in reads of at least L. It must be measured to see how far the real arm reaches, probably 100–150 kb at 30x if an UL dataset is used. Beyond that we rely on Arm B.
 4. **Real length distributions:** the same cutting can reproduce empirical distributions as well as fixed lengths. Proposed profiles:
-   - our cohort's R10 runs;
+   - our cohort's R10 runs (see below);
    - a standard LSK114 run;
    - an UL run;
    - a "degraded" profile with N50 around 8 kb.
+
+### Cohort read lengths (`cramino_metrics.tsv`, 489 samples)
+
+The cramino summary gives yield, N50, median and mean length, and yield above 25 kb. "R10-like" below means a modal identity of at least 98.5%.
+
+| | R10-like (n=132) | R9-like (n=357) |
+|---|---|---|
+| N50, P10 / median / P90 (kb) | 8.9 / 16.1 / 21.1 | 14.4 / 19.9 / 24.7 |
+| Median read length, median (kb) | 6.8 | 11.6 |
+| Yield above 25 kb, median (Gb) | 17.6 | 28.8 |
+| Mean coverage, median | 38.7x | 34.1x |
+
+- **Our cohort sits right at or below the 2020 threshold.** The R10 runs, mostly frontal cortex, have shorter reads than the R9 runs. A tenth of them have an N50 below 9 kb. So the replication answers a concrete question for our own data.
+- **In the cohort, yield does not correlate with N50 (r = -0.01).** Within standard preparations, longer reads did not cost yield. Our data has no ultra-long runs, so the trade-off for ultra-long libraries cannot be estimated from it. If needed, we would take ultra-long yields from ONT or literature numbers and treat them as assumptions.
+- **The summary statistics are not enough to reproduce the shape of a distribution.**
+  - A lognormal fitted from median and mean underestimates N50 by about 24% (the observed tail is heavier).
+  - The plan is to define three profiles from the summary (cohort R10 at the P10, median and P90 of N50).
+  - For one representative sample per profile, we get the full read-length histogram with a read-only `cramino --hist` on the server, and replay it in Arm A.
+  - Fallback: a lognormal with parameters from the median and N50.
 
 ### Arm B, simulation from the Q100 assembly (extends the length range, gives control)
 
@@ -54,7 +76,7 @@ Scope: SV discovery only (phasing comes later). ONT R10.4.1 only, since R9 is no
 
 - **Alignment:** a current minimap2 with `-x lr:hq`.
 - **Calling:** Sniffles2 is the main caller (current release, coverage-adaptive defaults). cuteSV is the second caller, to show the conclusion does not depend on one tool. Severus is optional.
-- **Assembly arm (stretch goal, expensive):** hifiasm in ONT mode or Verkko on Arm A data at a few lengths (10, 30, 100 kb), with SVs called from the assembly. This answers at what read length assembling beats calling from alignments, and for which classes.
+- **Assembly arm (undecided; my recommendation is to leave it out of the first post):** hifiasm in ONT mode or Verkko on Arm A data at a few lengths (10, 30, 100 kb), with SVs called from the assembly. This answers at what read length assembling beats calling from alignments, and for which classes.
 
 ## Evaluation
 
@@ -111,7 +133,10 @@ notebooks/     figures for the blog
 
 ## Milestones
 
-1. **Data inventory:** HG002 R10 datasets, their read-length distributions, and the achievable coverage per L. Pin the truth versions.
+1. **Data inventory:**
+   - HG002 R10 datasets, their read-length distributions, and the achievable coverage per L.
+   - Pin the truth versions.
+   - Get three cohort read-length histograms.
 2. **Ladder steps 1–2:** reproduce 2020, then swap the truth. This is a quick, cheap way to check that the critique holds.
 3. **Pilot grid, Arms A and B, on 20% of the genome.**
 4. **Assess, then decide** on running genome-wide and on the assembly arm.
@@ -125,10 +150,17 @@ notebooks/     figures for the blog
 4. The new answer: critical length per SV class, plus the classes that keep improving.
 5. Practical guidance on library choice, ultra-long or not, and degraded samples.
 
-## Open points to discuss
+## Decisions (2026-10-22)
 
-- Is HG002 alone enough, or do we add HG00733 for continuity?
-- What real data do we use? Can we include our own cohort's read-length distributions and our flow-cell yields per protocol? These are needed for question 5.
-- Is a HiFi comparator in or out? It is not ONT, but it isolates the effect of the error rate from read length.
-- Is the assembly arm in scope?
-- Where should the blog appear? Should this repo become public at publication time?
+- **HG002 only, ONT only.**
+- **Cohort read lengths come from `cramino_metrics.tsv`,** plus histograms of three representative samples.
+- **Assembly-based calling is undecided.** It is a different question (what read length is needed to *assemble* rather than *call*), and expensive. Decide after the pilot; it could become a follow-up post.
+- **The blog appears on Gigabase or gigabyte, and the repo becomes public.** Because the repo will be public:
+  - only public data;
+  - no cohort sample IDs, only aggregate statistics of read length;
+  - no server paths in committed config (keep those in a `server.yaml` that is not committed).
+
+## Still open
+
+- **Which HG002 R10 datasets to use** (milestone 1). Arm A needs enough coverage in reads of 100 kb and longer.
+- **Whether a genome-wide run is needed** after the pilot.
