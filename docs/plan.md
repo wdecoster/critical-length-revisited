@@ -9,7 +9,7 @@
 
 ## Questions
 
-1. **Critical length per stratum (main question).** For each SV stratum, find the read length beyond which SV discovery no longer improves, in real ONT R10 data, with simulation as support. Strata are type, size, and context (TR, SD, low mappability, other).
+1. **Critical length per stratum (main question).** For each SV stratum, find the read length beyond which SV discovery no longer improves, in real ONT R10 data (simulation only as a fallback beyond 150 kb). Strata are type, size, and context (TR, SD, low mappability, other).
 2. **Sequence completeness of insertions.** For insertions of a given size, what read length is needed to get the *full inserted sequence* right, not just the breakpoint?
 3. **Translation to practice: when is long long enough?** How well does SV discovery do as a function of library N50, using realistic distribution shapes at a fixed coverage? Readers can act on this part most directly.
 
@@ -63,7 +63,7 @@ What this does and does not change:
 - **The grid:**
   - 30x up to 50 kb;
   - 15x up to 150 kb.
-- **This changes the plan:** real reads cover the >150 kb question at 15x, and Arm B is needed only beyond 150 kb.
+- **This changes the plan:** real reads cover lengths up to 150 kb at 15x, so simulation is only a fallback (see below).
 
 **Length distributions (question 5):**
 - Cut to an empirical length distribution instead of a fixed L. The shapes come from public data: the standard `giab_2025.01` library and the UL library.
@@ -71,22 +71,22 @@ What this does and does not change:
 - Plot SV performance against library N50 at fixed coverage. This is the general "when is long long enough" recommendation, so no cohort-specific profiles.
 - If a sentence helps place the recommendation, quote typical N50 values of real runs (public or aggregate, e.g. "standard brain-tissue libraries often have an N50 of 10–20 kb"). There is no separate analysis of our cohort.
 
-### Arm B: simulation from Q100 v1.1 (support and control)
+### Fallback: simulation from Q100 v1.1 (only if needed)
 
-Purpose:
-- an exact fixed-length grid without coverage limits;
-- the then-and-now comparison;
-- the >150 kb question on a gap-free genome.
+The recommendation rests on real reads only. Simulation is a fallback, used only if an SV class (most likely segmental duplications) has not saturated at 150 kb in real data. In that case it extends that class's curve to 200–300 kb, as an extrapolation that is labelled as such.
 
-Simulator:
-- PBSIM3 (check that it ships an R10.4.1 error model) or Badread (`nanopore2023` model). Badread is slow at genome scale, and its chimera, junk and glitch rates must be set deliberately.
-- Validate against Arm A **per context**: identity, plus indel rates in homopolymers and TRs compared with non-repeat sequence. Neither simulator fully reproduces R10's systematic errors, and this is the main reason Arm A is the primary evidence.
+- **Simulator, if needed:** squigulator (raw signal) followed by basecalling with Dorado. This gives the most realistic R10 errors, at the cost of GPU time. Alternatives:
+  - Badread (`nanopore2023` model; slow at genome scale);
+  - PBSIM3 (check for an R10.4.1 model).
 
-Lengths: selected Arm A lengths for validation, plus 200 and 300 kb. Lengths above 300 kb are not needed.
+  Any of them keeps the error rate constant across lengths.
+- **Validation against real reads, per context:** identity, plus indel rates in homopolymers and TRs compared with non-repeat sequence, at lengths both arms share.
+- **Simulate only the affected regions** (e.g. SDs with paralog partners), not the whole genome.
+- **SimLoRD is used only for the then-and-now reproduction of 2020.**
 
 ### Length grid, coverage, replicates
 
-- **Lengths:** 1, 2, 3, 5, 7.5, 10, 15, 20, 30, 50, 75, 100, 150 kb (Arm A, as far as coverage allows), and 200 and 300 kb (Arm B).
+- **Lengths:** 1, 2, 3, 5, 7.5, 10, 15, 20, 30, 50, 75, 100, 150 kb (Arm A, as far as coverage allows), and 200 and 300 kb only through the simulation fallback.
 - **Coverage:** 15x for the full grid (up to 150 kb), and 30x up to 50 kb. Downsample rather than realign.
 - **Replicates:** 3 random cut placements or seeds at 3 lengths (5, 20, 100 kb). Other uncertainty comes from a block bootstrap (1 Mb blocks).
 
@@ -138,12 +138,11 @@ A small comparison that places the new recommendation next to the 2020 one. It i
 - In the pilot, also include parent reads that map to the SD paralog partners of the pilot SDs (from the GIAB SD stratification).
 - Run genome-wide at 4 lengths (2, 10, 30, 100 kb) for the SD stratum.
 - Pieces are always aligned to the whole genome.
-- Arm B uses the same approach.
+- The simulation fallback, if used, follows the same approach.
 
 **Estimate:**
 - About 100 core-hours per 30x genome-wide alignment, less at 15x and in the pilot.
 - `truvari refine` can take hours per call set.
-- Badread can be slow, so prefer PBSIM3 if it validates.
 - Storage: about 30–50 GB per 30x CRAM, roughly 3–4 TB in total if everything is kept. Keep VCFs and summaries; delete the cut FASTQs and the BAMs/CRAMs after calling, except at a few lengths kept for figures.
 
 ## Workflow
@@ -169,7 +168,7 @@ notebooks/     figures for the blog
    - Verify the LC2024 UL and `giab_2025.01` datasets: read-length distributions, basecaller versions, and achievable coverage per L. Fix the coverage grid from these.
    - Download and checksum the truth files and stratifications.
 2. **Then and now, steps 1–2.** Reproduce 2020, then run the same pipeline on HG002.
-3. **Pilot:** Arm A at 15x over the grid, the SD paralog extension, simulator validation, and Arm B at selected lengths.
+3. **Pilot:** Arm A at 15x over the grid, plus the SD paralog extension.
 4. **Assess,** then the genome-wide SD runs and the distribution profiles.
 5. **Figures and blog draft.**
 
@@ -200,3 +199,4 @@ The post leads with the recommendation; 2020 is context.
 
 - Verification of the UL dataset and the final coverage grid (milestone 1).
 - The assembly arm.
+- Whether the simulation fallback is needed: decided after the pilot, only for SV classes that have not saturated at 150 kb.
