@@ -58,8 +58,7 @@ rule simlord:
         """
         simlord --read-reference {input} -c {params.coverage} --without-ns -fl {wildcards.length} --no-sam \
           {params.prefix} &> {log}
-        gzip -1 {params.prefix}.fastq
-        mv {params.prefix}.fastq.gz {output}
+        gzip -1 {params.prefix}.fastq  # -> {output}
         """
 
 
