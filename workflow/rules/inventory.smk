@@ -30,9 +30,10 @@ rule read_lengths:
     log:
         os.path.join(LOGS, "inventory", "{read_set}.{i}.lengths.log"),
     shell:
-        # streamed sources are read without their index (some published .bai files do not match the BAM)
+        # streamed sources are read without their index (some published .bai files do not match the BAM);
+        # quickcheck -u: unaligned BAMs have no targets in their header
         """
-        samtools quickcheck {params.source} 2> {log} || [ ! -f {params.source} ]
+        samtools quickcheck -u {params.source} 2> {log} || [ ! -f {params.source} ]
         samtools view -@ {threads} -F 0x900 {params.source} 2>> {log} \
           | awk -F'\\t' '{{n[length($10)]++}} END {{for (l in n) print l"\\t"n[l]}}' \
           | sort -k1,1n > {output}
