@@ -1,0 +1,9 @@
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - minimap2=2.31
+  - samtools>=1.21
+  - mosdepth=0.3.14
+  - python>=3.11

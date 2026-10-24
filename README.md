@@ -39,3 +39,20 @@ Useful targets:
 
 The ladder simulates ~1.3 Tb of reads in total. SimLoRD runs at about 2 Mb/s per job, and the CLR-like alignments with minimap2 2.14 are the slowest step. Alignments are deleted once called, unless `ladder.keep_bams` is set.
 
+
+## Workflow (stage 2: the pilot)
+
+`snakemake ... pilot` runs Arm A of the plan on the pilot chromosomes (chr1, chr7, chr15, chr16, chr20):
+
+- **Parent reads:** HG002 R10 reads with an alignment on the pilot chromosomes, or on the paralog partners elsewhere of the pilot's segmental duplications (UCSC genomicSuperDups). The ultra-long set is mapped first (minimap2 `lr:hq`, positions only); the standard set brings its own alignments.
+- **Cutting:** `workflow/scripts/cut_reads.py` cuts every read of at least L into floor(len/L) pieces of exactly L, placed at random within the read (the leftover spread over the gaps), named `<read>_<k>`. It is a standalone tool:
+
+  ```bash
+  python workflow/scripts/cut_reads.py reads.fastq.gz --length 20000 --seed 1 --output pieces.fastq.gz
+  ```
+- **Alignment and coverage:** pieces are aligned to the whole genome (minimap2 2.31 `lr:hq`) and subsampled to exact coverages (30x up to 50 kb, 15x up to 150 kb) measured in the GIAB benchmark regions of the pilot chromosomes. A length with less coverage available uses all reads and records what it got.
+- **Calling:** Sniffles2 2.8.1 at every length, cuteSV 2.1.4 at 5, 20 and 100 kb (ONT clustering settings, minimum support scaled to coverage).
+- **Scoring:** truvari 5.5.0 against GIAB v5.0q (ALT=`*` removed): strict (GIAB's setup, then `truvari refine`) and lenient (`--dup-to-ins --pctseq 0`). Recall, precision and F1 per stratum (type, size, context: SD, TR, low mappability, other), and per truth SV the reads spanning it with 1 kb flanks.
+- **Replicates:** three cut placements at 5, 20 and 100 kb; the standard (`giab_2025.01`) set at 10, 20 and 30 kb as calibration of the ultra-long library.
+
+Output: `results/pilot/summary.tsv` (one row per run and stratum), plus per run the truvari results and spanning counts. Alignments are deleted once called, except at 5, 20 and 100 kb (`*.kept.bam`).

@@ -10,6 +10,7 @@ include: "rules/common.smk"
 include: "rules/resources.smk"
 include: "rules/inventory.smk"
 include: "rules/ladder.smk"
+include: "rules/pilot.smk"
 
 
 # Stage 1: data inventory, truth files, ladder steps 1-2
@@ -24,3 +25,9 @@ rule all:
 rule inventory:
     input:
         inventory_targets(),
+
+
+# Stage 2: the pilot (Arm A on the pilot chromosomes): snakemake pilot
+rule pilot:
+    input:
+        os.path.join(OUT, "pilot", "summary.tsv"),
