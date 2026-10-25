@@ -1,4 +1,4 @@
-cores: 64
+cores: 16
 software-deployment-method: [conda, apptainer]
 rerun-incomplete: true
 printshellcmds: true
