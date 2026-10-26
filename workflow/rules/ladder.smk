@@ -130,6 +130,7 @@ rule truth_2020_haplotype:
         vcf=os.path.join(LADDER_DIR, "{genome}", "truth_2020", "{hap}.svs.vcf"),
     params:
         min_length=LADDER["min_sv_length"],
+        exclude=" ".join(LADDER["exclude_chromosomes"]),
     threads: 16
     conda:
         os.path.join(ENVS, "minimap2_2014.yaml")
@@ -137,7 +138,10 @@ rule truth_2020_haplotype:
         os.path.join(LOGS, "ladder", "{genome}.truth_2020.{hap}.log"),
     shell:
         """
-        minimap2 -cx asm5 --cs -r2k -t {threads} {REF} {input} 2> {log} | gzip > {output.paf}
+        minimap2 -cx asm5 --cs -r2k -t {threads} {REF} \
+          <(awk -v ex="{params.exclude}" 'BEGIN {{split(ex, e, " "); for (i in e) skip[e[i]]}}
+                /^>/ {{name = substr($1, 2); sub(/_.*/, "", name); keep = !(name in skip)}} keep' {input}) \
+          2> {log} | gzip > {output.paf}
         zcat {output.paf} | sort -k6,6 -k8,8n | paftools.js call -f {REF} - 2>> {log} \
           | python {SCRIPTS}/sv_from_paftools.py --min-length {params.min_length} --sample {wildcards.hap} \
           > {output.vcf} 2>> {log}
@@ -181,6 +185,7 @@ rule evaluate_2020:
     params:
         distance=LADDER["match_distance"],
         min_length=LADDER["min_sv_length"],
+        exclude=" ".join(LADDER["exclude_chromosomes"]),
     conda:
         os.path.join(ENVS, "survivor.yaml")
     log:
@@ -188,7 +193,7 @@ rule evaluate_2020:
     shell:
         """
         python {SCRIPTS}/evaluate_2020.py --truth {input.truth} --calls {input.calls} \
-          --distance {params.distance} --min-length {params.min_length} \
+          --distance {params.distance} --min-length {params.min_length} --exclude-chromosomes {params.exclude} \
           --labels genome={wildcards.genome} length={wildcards.length} coverage={wildcards.coverage} \
           setting={wildcards.setting} --output {output} &> {log}
         """

@@ -4,7 +4,7 @@ Both VCFs get every "DUP" replaced by "INS" (plain text, as surpyvor normalize_v
 (distance, 1 caller, same type, strand ignored, no distance estimation, min. length). A merged site counts for
 a VCF when that sample's genotype there is heterozygous or homozygous alternative (missing and 0/0 do not).
 Sites are identified by chromosome, start and SVTYPE, as sets: TP = sites of both, precision = TP / test
-sites, recall = TP / truth sites.
+sites, recall = TP / truth sites. Records on --exclude-chromosomes are dropped from both VCFs first.
 """
 
 import argparse
@@ -19,6 +19,7 @@ def parse_args():
     parser.add_argument("--calls", required=True)
     parser.add_argument("--distance", type=int, default=500)
     parser.add_argument("--min-length", type=int, default=50)
+    parser.add_argument("--exclude-chromosomes", nargs="*", default=[], help="records on these are left out of both")
     parser.add_argument("--labels", nargs="*", default=[], help="key=value columns added to the output")
     parser.add_argument("--output", required=True)
     return parser.parse_args()
@@ -53,6 +54,8 @@ def main():
             path = os.path.join(tmp, f"{name}.vcf")
             with open(vcf) as source, open(path, "w") as out:
                 for line in source:
+                    if not line.startswith("#") and line.split("\t", 1)[0] in args.exclude_chromosomes:
+                        continue
                     out.write(line.replace("DUP", "INS"))
             paths.append(path)
         fofn = os.path.join(tmp, "files.txt")

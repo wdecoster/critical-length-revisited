@@ -81,6 +81,9 @@ ladder:
   # 2020 matching: SURVIVOR merge, distance 500, same type, min. length 50
   match_distance: 500
   min_sv_length: 50
+  # left out of the truth (assembly sequences named <chrom>_...) and of the evaluated calls: minimap2 asm5 -r2k
+  # stalls on the chrY satellites (Yq12) of the HG002 paternal haplotype
+  exclude_chromosomes: [chrY]
 
 # Stage 2: the pilot (docs/plan.md, milestone 3). Arm A: real reads cut to fixed lengths. Parent reads are
 # selected by where they map: the pilot chromosomes, plus the paralog partners elsewhere of the pilot's
