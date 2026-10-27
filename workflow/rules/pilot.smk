@@ -395,7 +395,9 @@ rule spanning_reads:
 
 
 rule keep_bam:
-    """The alignments of keep_bams_lengths outlive their temporary originals (a hard link)"""
+    """The alignments of keep_bams_lengths outlive their temporary originals (a hard link). A link shares the
+    original's mtime, and the index is written just after the BAM, so Snakemake would see the kept BAM as older
+    than the index it was made from: the BAM first gets the index's mtime"""
     input:
         bam=os.path.join(RUN, "{coverage}x.bam"),
         bai=os.path.join(RUN, "{coverage}x.bam.bai"),
@@ -403,7 +405,7 @@ rule keep_bam:
         bam=os.path.join(RUN, "{coverage}x.kept.bam"),
         bai=os.path.join(RUN, "{coverage}x.kept.bam.bai"),
     shell:
-        "ln -f {input.bam} {output.bam} && ln -f {input.bai} {output.bai}"
+        "touch -r {input.bai} {input.bam} && ln -f {input.bam} {output.bam} && ln -f {input.bai} {output.bai}"
 
 
 rule pilot_summary:
