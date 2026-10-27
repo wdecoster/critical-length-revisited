@@ -397,7 +397,8 @@ rule spanning_reads:
 rule keep_bam:
     """The alignments of keep_bams_lengths outlive their temporary originals (a hard link). A link shares the
     original's mtime, and the index is written just after the BAM, so Snakemake would see the kept BAM as older
-    than the index it was made from: the BAM first gets the index's mtime"""
+    than the index it was made from: after linking, BAM and index get one explicit timestamp (touch -r or a plain
+    touch is not enough on NFS, where each file can get its own server time)"""
     input:
         bam=os.path.join(RUN, "{coverage}x.bam"),
         bai=os.path.join(RUN, "{coverage}x.bam.bai"),
@@ -405,7 +406,8 @@ rule keep_bam:
         bam=os.path.join(RUN, "{coverage}x.kept.bam"),
         bai=os.path.join(RUN, "{coverage}x.kept.bam.bai"),
     shell:
-        "touch -r {input.bai} {input.bam} && ln -f {input.bam} {output.bam} && ln -f {input.bai} {output.bai}"
+        "ln -f {input.bam} {output.bam} && ln -f {input.bai} {output.bai} && "
+        "touch -d @$(date +%s) {output.bam} {output.bai}"
 
 
 rule pilot_summary:
