@@ -104,8 +104,10 @@ pilot:
   seeds: [1]
   replicates: {seeds: [2, 3], lengths: [5000, 20000, 100000], read_sets: [ulk]}
   # pieces kept before alignment: this factor x the highest coverage x the selection regions' size, then
-  # subsampled exactly after alignment
-  oversample: 1.3
+  # subsampled exactly after alignment. About 70% of the kept bases land in the evaluation regions (the rest:
+  # SD partner regions, non-benchmark sequence, unmapped), so 1.3 fell short (pilot: 26-27.5x for 30x, 11.5-12.5x
+  # for 15x at >= 75 kb); 1.8 reaches the targets (at 150 kb nearly all pieces are kept: about 16x)
+  oversample: 1.8
   callers:
     # Sniffles2 with its coverage-adaptive defaults; its MAPQ filter (--mapq) shapes behaviour in SDs: record
     # the version's default in the post
