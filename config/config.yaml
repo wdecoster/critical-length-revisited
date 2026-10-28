@@ -103,6 +103,16 @@ pilot:
   # cut placement seeds: seed 1 everywhere, more replicates at a few lengths
   seeds: [1]
   replicates: {seeds: [2, 3], lengths: [5000, 20000, 100000], read_sets: [ulk]}
+  # Length distributions (milestone 4, the N50 recommendation): the pilot's parent reads of `parents` cut to
+  # pieces whose lengths follow a real library's read length distribution (its inventory histogram), rescaled to
+  # each N50 (cut_reads.py distribution mode). Runs are L N<n50><shape> next to the fixed lengths and go through
+  # the same alignment, calling and scoring; snakemake pilot_distributions. Coverages and callers by N50 as above.
+  distributions:
+    parents: ulk
+    shapes: [standard, ulk]
+    n50s: [5000, 8000, 10000, 15000, 20000, 30000, 50000, 100000]
+    coverages: {30: 50000, 15: 100000}
+    seeds: [1]
   # pieces kept before alignment: this factor x the highest coverage x the selection regions' size, then
   # subsampled exactly after alignment. About 70% of the kept bases land in the evaluation regions (the rest:
   # SD partner regions, non-benchmark sequence, unmapped), so 1.3 fell short (pilot: 26-27.5x for 30x, 11.5-12.5x

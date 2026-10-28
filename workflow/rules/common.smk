@@ -54,7 +54,8 @@ wildcard_constraints:
     genome="|".join(map(re.escape, ASSEMBLIES)),
     hap="hap1|hap2",
     chunk=r"\d{3}",
-    length=r"\d+",
+    # a fixed piece length, or a length distribution run of the pilot: N<target N50><shape>, e.g. N20000standard
+    length=r"\d+|N\d+[a-z]+",
     coverage=r"\d+",
     setting="|".join(map(re.escape, LADDER["sniffles1"])),
     read_set="|".join(map(re.escape, READ_SETS)),

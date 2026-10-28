@@ -11,21 +11,40 @@ TRUTH_VCF = os.path.join(RES, "giab", "HG002_GRCh38_v5.0q_stvar.vcf.gz")
 BENCHMARK_BED = os.path.join(RES, "giab", "HG002_GRCh38_v5.0q_stvar.benchmark.bed")
 
 
+DIST = PILOT.get("distributions") or {}
+
+
+def is_distribution(length):
+    return str(length).startswith("N")
+
+
+def nominal(length):
+    """The length a run is compared at: its fixed length, or a distribution run's target N50"""
+    return int(re.match(r"N?(\d+)", str(length)).group(1))
+
+
+def distribution_shape(length):
+    return re.match(r"N\d+([a-z]+)$", str(length)).group(1)
+
+
 def pilot_coverages(length):
-    """Coverages a length is evaluated at, highest first"""
-    return sorted((c for c, max_length in PILOT["coverages"].items() if int(length) <= max_length), reverse=True)
+    """Coverages a length (or distribution run) is evaluated at, highest first"""
+    table = DIST["coverages"] if is_distribution(length) else PILOT["coverages"]
+    return sorted((c for c, max_length in table.items() if nominal(length) <= max_length), reverse=True)
 
 
 def pilot_seeds(read_set, length):
+    if is_distribution(length):
+        return list(DIST.get("seeds", [1]))
     seeds = list(PILOT["seeds"])
     rep = PILOT.get("replicates") or {}
-    if read_set in rep.get("read_sets", []) and int(length) in rep.get("lengths", []):
+    if read_set in rep.get("read_sets", []) and nominal(length) in rep.get("lengths", []):
         seeds += rep["seeds"]
     return seeds
 
 
 def pilot_callers(length):
-    return [c for c, s in PILOT["callers"].items() if s["lengths"] == "all" or int(length) in s["lengths"]]
+    return [c for c, s in PILOT["callers"].items() if s["lengths"] == "all" or nominal(length) in s["lengths"]]
 
 
 def pilot_runs():
@@ -35,6 +54,22 @@ def pilot_runs():
         for read_set, spec in PILOT["read_sets"].items()
         for length in spec["lengths"]
         for seed in pilot_seeds(read_set, length)
+        for coverage in pilot_coverages(length)
+        for caller in pilot_callers(length)
+        for scoring in PILOT["scoring"]
+    ]
+
+
+def distribution_runs():
+    """(read_set, length, seed, coverage, caller, scoring) of the length distribution runs"""
+    if not DIST:
+        return []
+    return [
+        (DIST["parents"], length, seed, coverage, caller, scoring)
+        for shape in DIST["shapes"]
+        for n50 in DIST["n50s"]
+        for length in [f"N{n50}{shape}"]
+        for seed in pilot_seeds(DIST["parents"], length)
         for coverage in pilot_coverages(length)
         for caller in pilot_callers(length)
         for scoring in PILOT["scoring"]
@@ -161,6 +196,8 @@ rule cut_reads:
     output:
         fastq=temp(os.path.join(RUN, "pieces.fastq.gz")),
         stats=os.path.join(RUN, "pieces.stats.tsv"),
+    wildcard_constraints:
+        length=r"\d+",
     params:
         target=lambda wc, input: PILOT["oversample"] * max(pilot_coverages(wc.length)) * pilot_size(input.sizes, "selection"),
     conda:
@@ -171,6 +208,34 @@ rule cut_reads:
         """
         python {SCRIPTS}/cut_reads.py {input.fastq} --length {wildcards.length} --seed {wildcards.seed} \
           --target-bases {params.target} --output {output.fastq} --stats {output.stats} &> {log}
+        """
+
+
+rule cut_distribution:
+    """Parent reads cut into pieces whose lengths follow a library's read length distribution (inventory
+    histograms of the shape's read set) rescaled to the run's N50, kept at random to about oversample x the
+    highest coverage x the selection regions (as cut_reads)"""
+    input:
+        fastq=os.path.join(PILOT_DIR, "parents", "{read_set}.fastq.gz"),
+        sizes=rules.pilot_regions.output.sizes,
+        shape=lambda wc: expand(os.path.join(OUT, "inventory", distribution_shape(wc.length), "{i}.lengths.tsv"),
+                                i=range(len(READ_SETS[distribution_shape(wc.length)]["urls"]))),
+    output:
+        fastq=temp(os.path.join(RUN, "pieces.fastq.gz")),
+        stats=os.path.join(RUN, "pieces.stats.tsv"),
+    wildcard_constraints:
+        length=r"N\d+[a-z]+",
+    params:
+        n50=lambda wc: nominal(wc.length),
+        target=lambda wc, input: PILOT["oversample"] * max(pilot_coverages(wc.length)) * pilot_size(input.sizes, "selection"),
+    conda:
+        os.path.join(ENVS, "analysis.yaml")
+    log:
+        os.path.join(LOGS, "pilot", "{read_set}.L{length}.s{seed}.cut.log"),
+    shell:
+        """
+        python {SCRIPTS}/cut_reads.py {input.fastq} --distribution {input.shape} --n50 {params.n50} \
+          --seed {wildcards.seed} --target-bases {params.target} --output {output.fastq} --stats {output.stats} &> {log}
         """
 
 
@@ -427,4 +492,26 @@ rule pilot_summary:
         """
         python -c "import sys, pandas as pd; pd.concat(pd.read_table(f) for f in sys.argv[2:]).to_csv(sys.argv[1], sep='\\t', index=False)" \
           {output} {input.strata}
+        """
+
+
+rule distribution_summary:
+    """All strata of the length distribution runs in one table, with each run's shape, target and achieved N50"""
+    input:
+        strata=[os.path.join(PILOT_DIR, r, f"L{l}", f"s{s}", f"{c}x.{caller}.{scoring}.strata.tsv")
+                for r, l, s, c, caller, scoring in distribution_runs()],
+        spanning=sorted({os.path.join(PILOT_DIR, r, f"L{l}", f"s{s}", f"{c}x.spanning.tsv.gz")
+                         for r, l, s, c, _, _ in distribution_runs()}),
+        pieces=sorted({os.path.join(PILOT_DIR, r, f"L{l}", f"s{s}", "pieces.stats.tsv")
+                       for r, l, s, _, _, _ in distribution_runs()}),
+    output:
+        os.path.join(PILOT_DIR, "distributions.tsv"),
+    conda:
+        os.path.join(ENVS, "analysis.yaml")
+    log:
+        os.path.join(LOGS, "pilot", "distribution_summary.log"),
+    shell:
+        """
+        python {SCRIPTS}/distribution_summary.py --strata {input.strata} --pieces {input.pieces} \
+          --output {output} &> {log}
         """

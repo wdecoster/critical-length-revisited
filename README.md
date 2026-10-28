@@ -55,4 +55,18 @@ The ladder simulates ~1.3 Tb of reads in total. SimLoRD runs at about 2 Mb/s per
 - **Scoring:** truvari 5.5.0 against GIAB v5.0q (ALT=`*` removed): strict (GIAB's setup, then `truvari refine`) and lenient (`--dup-to-ins --pctseq 0`). Recall, precision and F1 per stratum (type, size, context: SD, TR, low mappability, other), and per truth SV the reads spanning it with 1 kb flanks.
 - **Replicates:** three cut placements at 5, 20 and 100 kb; the standard (`giab_2025.01`) set at 10, 20 and 30 kb as calibration of the ultra-long library.
 
-Output: `results/pilot/summary.tsv` (one row per run and stratum), plus per run the truvari results and spanning counts. Alignments are deleted once called, except at 5, 20 and 100 kb (`*.kept.bam`).
+Output: `results/pilot/summary.tsv` (one row per run and stratum), plus per run the truvari results and spanning counts. Alignments are deleted once called (`pilot.keep_bams_lengths` keeps some as `*.kept.bam`).
+
+
+## Workflow (milestone 4: library N50)
+
+`snakemake ... pilot_distributions` cuts the same ultra-long parent reads into pieces whose lengths follow a real library's read length distribution (the inventory histograms of the standard and the ultra-long library), rescaled to N50 values of 5, 8, 10, 15, 20, 30, 50 and 100 kb. The runs (`L N<n50><shape>`, e.g. `N20000standard`) then go through the pilot's alignment, subsampling, calling and scoring.
+
+- **Cutting:** `cut_reads.py --distribution <histograms> --n50 <bp>` fills each read with pieces of drawn lengths until the next does not fit, and spreads the leftover over the gaps. Long pieces only fit in long reads, so the drawing weights are first calibrated on the reads' own lengths (per length bin: target / achieved share), and the bins rescaled until the pieces' N50 is within 1% of the target. On the ultra-long reads the standard shape reaches every N50; the ultra-long shape at 100 kb reaches about 90 kb (the parents run out of longer reads), which the stats record.
+
+  ```bash
+  python workflow/scripts/cut_reads.py reads.fastq.gz --distribution lengths.tsv --n50 20000 --seed 1 --output pieces.fastq.gz
+  ```
+- **Coverage:** 30x up to an N50 of 50 kb, 15x at every N50.
+
+Output: `results/pilot/distributions.tsv`, the strata of every run with its shape, target N50 and the N50 and mean length achieved. Plot against the achieved N50.

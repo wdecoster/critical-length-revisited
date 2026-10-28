@@ -31,3 +31,10 @@ rule inventory:
 rule pilot:
     input:
         os.path.join(OUT, "pilot", "summary.tsv"),
+
+
+# Milestone 4: length distributions rescaled to a grid of N50 values (the N50 recommendation):
+# snakemake pilot_distributions
+rule pilot_distributions:
+    input:
+        os.path.join(OUT, "pilot", "distributions.tsv"),
