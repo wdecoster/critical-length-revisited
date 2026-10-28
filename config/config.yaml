@@ -129,5 +129,6 @@ pilot:
   # reads spanning each truth SV +/- this flank (mechanistic view), counted at this minimum MAPQ
   spanning_flank: 1000
   spanning_mapq: 20
-  # alignments are deleted once called, except at these lengths (figures)
-  keep_bams_lengths: [5000, 20000, 100000]
+  # alignments are deleted once called, except at these lengths (figures). Empty: the pilot's kept BAMs were
+  # deleted (2026-10-28), figures can show slices of a rerun instead
+  keep_bams_lengths: []
