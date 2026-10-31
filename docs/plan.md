@@ -158,7 +158,7 @@ Server paths only go in an uncommitted `config/server.yaml`. The read-cutting st
 ```
 config/        config.yaml (grid, public data sources, truth versions + checksums)
 workflow/      rules: data, cut_reads, simulate, align, call, evaluate, ladder, plots
-docs/          assessment.md, plan.md, blog draft
+docs/          plan.md, assembly_plan.md
 notebooks/     figures for the blog
 ```
 

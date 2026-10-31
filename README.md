@@ -2,7 +2,8 @@
 
 This repo revisits [De Coster et al. 2020, *Critical length in long-read resequencing*](https://doi.org/10.1093/nargab/lqz027) (NAR Genom Bioinform 2(1):lqz027) with current data and tools, for a follow-up post on [Gigabase or gigabyte](https://wdecoster.github.io/gigabaseorgigabyte/). The first focus is structural variant discovery; phasing comes later.
 
-- [docs/assessment.md](docs/assessment.md): notes on the 2020 SV methods, and what to change for the replication.
+- Blog post: [Critical length revisited](https://wdecoster.github.io/gigabaseorgigabyte/posts/2026-10-31-critical-length-revisited/). Its figures come from `scripts/blog_figures.py`.
+- [docs/assembly_plan.md](docs/assembly_plan.md): the plan for a follow-up on de novo assembly against read length (not started).
 - [docs/plan.md](docs/plan.md): the replication plan. It uses the HG002 Q100 truth, ONT R10 reads (real reads cut to length, plus simulation), Sniffles2 and cuteSV, and stratified truvari evaluation.
 
 The original code is at https://github.com/wdecoster/read_length_SV_discovery.
