@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Figures for the blog post, from the workflow's summary tables (results/pilot/summary.tsv,
-results/pilot/distributions.tsv, results/ladder/summary_steps1-2.tsv). Sniffles2 with lenient truvari scoring
-throughout (strict scoring gives the same shapes, a few points higher)."""
+results/pilot/distributions.tsv, results/ladder/summary_steps1-2.tsv). Sniffles2 throughout, scored with GIAB's truvari
+setup followed by truvari refine ("strict" in the workflow) unless --scoring says otherwise."""
 
 import argparse
 import os
@@ -23,6 +23,7 @@ def parse_args():
     parser.add_argument("--ladder", required=True)
     parser.add_argument("--outdir", required=True)
     parser.add_argument("--prefix", default="")
+    parser.add_argument("--scoring", default="strict", choices=["strict", "lenient"])
     return parser.parse_args()
 
 
@@ -53,8 +54,8 @@ def label_end(ax, x, y, text, color):
                 fontsize=9, color=INK)
 
 
-def n50_figure(dist, out):
-    d = dist[(dist.caller == "sniffles2") & (dist.scoring == "lenient") & (dist["shape"] == "standard")]
+def n50_figure(dist, scoring, out):
+    d = dist[(dist.caller == "sniffles2") & (dist.scoring == scoring) & (dist["shape"] == "standard")]
     fig, axes = plt.subplots(1, 2, figsize=(10, 4.2), sharey=True)
     for ax, cov in zip(axes, [15, 30]):
         for kind, stratum, name, color, marker in STRATA:
@@ -73,8 +74,8 @@ def n50_figure(dist, out):
     plt.close(fig)
 
 
-def fixed_figure(pilot, out):
-    d = pilot[(pilot.read_set == "ulk") & (pilot.caller == "sniffles2") & (pilot.scoring == "lenient")
+def fixed_figure(pilot, scoring, out):
+    d = pilot[(pilot.read_set == "ulk") & (pilot.caller == "sniffles2") & (pilot.scoring == scoring)
               & (pilot.coverage == 15)]
     fig, ax = plt.subplots(figsize=(7.5, 4.2))
     for kind, stratum, name, color, marker in STRATA:
@@ -91,7 +92,7 @@ def fixed_figure(pilot, out):
     plt.close(fig)
 
 
-def then_now_figure(pilot, ladder, out):
+def then_now_figure(pilot, ladder, scoring, out):
     fig, ax = plt.subplots(figsize=(7.5, 4.2))
     series = [
         (ladder[(ladder.genome == "HG00733_2020") & (ladder.coverage == 40) & (ladder.setting == "default")],
@@ -102,7 +103,7 @@ def then_now_figure(pilot, ladder, out):
     for x, name, color, marker, ls in series:
         x = x.sort_values("length")
         ax.plot(x.length, x.f1, color=color, marker=marker, markersize=6, linewidth=2, linestyle=ls, label=name)
-    now = pilot[(pilot.read_set == "ulk") & (pilot.caller == "sniffles2") & (pilot.scoring == "lenient")
+    now = pilot[(pilot.read_set == "ulk") & (pilot.caller == "sniffles2") & (pilot.scoring == scoring)
                 & (pilot.kind == "all") & (pilot.coverage == 15)].groupby("length").f1.mean().sort_index()
     ax.plot(now.index, now.values, color=BLUE, marker="^", markersize=6, linewidth=2,
             label="Now: real R10 reads cut to length, HG002 (15x)")
@@ -124,9 +125,9 @@ def main():
     dist = pd.read_table(args.distributions)
     ladder = pd.read_table(args.ladder)
     os.makedirs(args.outdir, exist_ok=True)
-    n50_figure(dist, os.path.join(args.outdir, f"{args.prefix}n50.png"))
-    fixed_figure(pilot, os.path.join(args.outdir, f"{args.prefix}fixed_length.png"))
-    then_now_figure(pilot, ladder, os.path.join(args.outdir, f"{args.prefix}then_and_now.png"))
+    n50_figure(dist, args.scoring, os.path.join(args.outdir, f"{args.prefix}n50.png"))
+    fixed_figure(pilot, args.scoring, os.path.join(args.outdir, f"{args.prefix}fixed_length.png"))
+    then_now_figure(pilot, ladder, args.scoring, os.path.join(args.outdir, f"{args.prefix}then_and_now.png"))
 
 
 if __name__ == "__main__":
