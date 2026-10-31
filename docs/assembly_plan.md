@@ -1,6 +1,22 @@
 # Follow-up plan: de novo assembly vs read length
 
-Status: plan only (2026-10-31). Waits until the server has room; see "Order and gating".
+Status: plan agreed in outline (2026-10-31, decisions below). Waits until the server has room; see "Order and
+gating".
+
+## Decisions (2026-10-31)
+
+1. **The regional arm (Q5) comes first, and is the focus for a long time.** The genome-scale arms follow later.
+2. **Realistic phasing** is the main mode of the regional arm: what a regional pipeline does in practice
+   (below). The oracle mode stays only as a ceiling.
+3. **Named locus:** MAPT (17q21.31), as the hard case study (inversion polymorphism, large near-identical
+   segmental duplications). The statistical backbone is the set of window classes; see "Regional arm" for the
+   choice of an easy reference locus.
+4. **Read selection: design B** (pieces selected by their own alignment).
+5. **Assemblers:** Flye and hifiasm for the regional arm, hifiasm for the genome scale. Verkko and hifiasm's
+   ultra-long mode are out of scope.
+6. **Coverage:** 20x and 30x per sample, for both arms. 15x per sample is too low for reliable regional assembly
+   in practice. 20x and 30x also show when read length beats coverage and when it does not.
+7. **Data:** the pilot data stay (no deletions).
 
 The SV post answered "how long should reads be for read-based SV discovery?". This follow-up asks the same
 question for de novo assembly, which is a different problem. Assembly also needs coverage for error correction.
@@ -42,14 +58,12 @@ one most relevant for regional pangenomics, so it should go first.
   - **N50 mode (main arm):** the standard shape, N50 5, 10, 20, 30 and 50 kb.
   - **Fixed lengths (mechanism):** 10, 20, 50 and 100 kb, where the coverage allows.
 - **Coverage:**
-  - **Genome-scale arms (Q1–Q4):** 30x as the main coverage. hifiasm `--ont` relies on read overlaps for error
-    correction, so 15x is expected to be poor; run it once as a reference point. Run 40x at N50 ≤ 30 kb if the
-    parent supply allows; check it with the inventory.
-  - **Regional arm (Q5):** 15x and 30x per sample, which is 7.5x and 15x per haplotype. These are the coverages
-    regional cohort data typically have.
-- **Coverage ceiling:** a 100 kb N50, and fixed lengths of 100 kb or more, cannot reach 30x from these data. As
-  in the first post, the ultra-long end is only covered at 15–20x. State this as a limitation; do not stretch
-  the data.
+  - **Both arms:** 20x and 30x per sample (10x and 15x per haplotype). The 20x runs are subsampled from the 30x
+    alignment, as in the pilot. hifiasm `--ont` relies on read overlaps for error correction, so lower
+    coverages are not tested.
+- **Coverage ceiling:** 30x reaches an N50 of 50 kb; 20x also reaches an N50 of 100 kb (about 28x of the data is
+  in reads of 100 kb or more). So "20x at 100 kb against 30x at 30 kb" is a direct test of read length against
+  coverage. Fixed lengths of 150 kb only reach about 16x; leave them out.
 - **Replicates:** a second cut seed at 20 kb N50 for every arm, to measure the noise.
 
 ### Read selection: the main design choice
@@ -68,7 +82,7 @@ Options:
 | C. Chromosome subset from the existing parents | cheapest | short pieces pre-cleaned by long-read mapping (above) |
 
 Plan:
-- **B for the grid.**
+- **B for the grid** (decided).
 - **A for three points** (10, 30 and 50 kb N50 at 30x), to anchor the absolute numbers.
 - **C only for development and debugging.**
 
@@ -80,26 +94,42 @@ Chromosomes chr7 and chr20:
 
 ### Regional arm (Q5) design
 
-- **Windows:** 50–100 windows of 500 kb, in three groups:
-  - random windows on the pilot chromosomes, inside the GIAB benchmark regions;
-  - windows chosen for segmental duplication content (long, near-identical copies) and for tandem repeat hotspots;
-  - a few windows with known large insertions in HG002.
+- **Windows:** 50–100 windows of about 450–500 kb, anywhere in the genome (design B aligns everything), in
+  classes:
+  - *plain:* random windows inside the GIAB benchmark regions, with few repeats. These are the easy loci of a
+    typical regional study, and the reference for everything else;
+  - *segmental duplications:* windows with long, near-identical copies;
+  - *tandem repeat hotspots;*
+  - *large insertions:* windows with a known large insertion in HG002;
+  - *MAPT:* the whole 17q21.31 region as a named case study (about 1–1.5 Mb, coordinates set from the segmental
+    duplication annotation and the Q100 alignment; check HG002's H1/H2 status first).
 
-  The selection is scripted and seeded.
-- **Reads per window:** the pieces whose alignment overlaps the window plus 50 kb flanks, from the same aligned
-  pieces as the SV study (one alignment per condition).
-- **Haplotype assignment, two modes:**
-  - *Oracle:* assign each piece to the Q100 haplotype it aligns to better; ambiguous pieces go to both. This
-    isolates assembly from phasing.
-  - *Realistic:* phase SNVs with LongPhase at that coverage, then haplotag the pieces; untagged pieces go to both
-    haplotypes. Phasing error then shows up in the assembly.
+  The selection is scripted and seeded. For an easy named example in the post, pick one plain window after the
+  fact; no separate named simple locus.
+- **Reads per window:** the pieces whose own alignment overlaps the window plus 50 kb flanks. Cheaper equivalent
+  of design B for this arm: select the full-length reads aligned to the window ± 1 Mb *and* to its segmental
+  duplication partners elsewhere, cut them, align the pieces to the whole genome, and keep the pieces that land
+  in the window. The only difference from full B: pieces from unannotated similar sequence elsewhere that would
+  mismap into the window are missed. Decide at implementation whether to use full B (shared with the genome
+  arm) or this partner version.
+- **Haplotype assignment (realistic, main mode):** what a regional pipeline does:
+  - SNV calling (DeepVariant for R10) and SV calling (Sniffles2) in the window plus flanks;
+  - phasing with LongPhase `--ont`, with the SVs;
+  - haplotagging the pieces;
+  - untagged pieces (homozygous stretches) go to both haplotypes.
+
+  A regional pipeline across many samples can join phase blocks with population phasing. A single sample cannot,
+  so block switches remain. Optionally test joining blocks with a reference panel (SHAPEIT5 with the 1000 Genomes
+  panel; HG002 is not in it).
+- **Oracle mode (ceiling only):** assign each piece to the Q100 haplotype it aligns to better; ambiguous pieces
+  go to both.
 - **Assemblers, per haplotype:**
-  - Flye `--nano-hq` (what regional pipelines often use);
-  - hifiasm `--ont` (unphased per haplotype, and diploid on all reads of the window).
+  - Flye `--nano-hq --no-alt-contigs` (what regional pipelines often use);
+  - hifiasm `--ont` in haploid mode on the haplotype's reads, and diploid on all reads of the window.
 - **Truth per window:** the Q100 haplotype sequence matching the window. Get it by mapping each Q100 haplotype to
   GRCh38 (minimap2 asm5; dipcall's alignment if it is kept) and lifting the window boundaries.
 - **Measures per haplotype:**
-  - complete (one contig spanning the window, ≥ 99% of the truth length);
+  - complete: the contigs cover ≥ 95% of the window, and one contig spans it;
   - the number of contigs;
   - the largest contig as a fraction of the window;
   - identity to the truth (edit distance per Mb, QV);
@@ -118,7 +148,7 @@ Chromosomes chr7 and chr20:
 | Phasing | yak `trioeval` with k-mers from the two Q100 haplotypes (stand-ins for the parents): switch and Hamming errors; phased block N50 from the contig assignments |
 | Gene completeness (optional) | compleasm on the chromosome subset or the whole genome |
 | Assembly SVs | dipcall (`-z200000,10000`, as GIAB) on hap1/hap2, then truvari with the GIAB setup + refine and the same stratification script |
-| Read phasing (Q5, realistic) | LongPhase (SNVs), `longphase haplotag` |
+| Read phasing (Q5, realistic) | DeepVariant (R10 model) + Sniffles2 in the window; LongPhase `--ont` with SVs; `longphase haplotag` |
 
 New conda environments are needed for hifiasm, flye, quast, yak, gfatools/seqkit and dipcall.
 
@@ -167,30 +197,33 @@ New conda environments are needed for hifiasm, flye, quast, yak, gfatools/seqkit
 
 ## Order and gating
 
-0. **Precondition (now):** do not delete the pilot's parent reads (the bulk of the 88 GB of pilot
-   intermediates) when the SV post is published. This plan reuses them. The rest of the pilot intermediates can
-   go.
-1. **Milestone 1, timing and plumbing (design C, development):**
-   - chr20 only, two conditions (10 and 30 kb N50, 30x);
-   - hifiasm + Flye + all evaluations end to end;
-   - measure time and peak memory, then settle the grid.
-2. **Milestone 2, Q5 regional arm:** the full window set, oracle and realistic phasing. This gives the first
-   blog-worthy result, and the most relevant one for regional pangenomics.
-3. **Milestone 3, Q1–Q4 on the chromosome subset (design B).**
+0. **Data:** keep the pilot data, including the parent reads, and the full ultra-long read set.
+1. **Milestone 1, regional plumbing and timing:**
+   - 5 windows (2 plain, 1 segmental duplication, 1 tandem repeat, MAPT), 2 conditions (10 and 30 kb N50, 30x);
+   - the realistic phasing chain, Flye and hifiasm, and all regional measures, end to end;
+   - measure time, peak memory and disk; settle the read selection (full B or the partner version) and the grid.
+2. **Milestone 2, the regional arm:** the full window set, N50 grid and fixed lengths at 20x and 30x,
+   realistic phasing (oracle as the ceiling). The first blog post.
+3. **Milestone 3, Q1–Q4 on the chromosome subset (design B), at 20x and 30x.** Later.
 4. **Milestone 4, three whole-genome anchors (design A).** Only if milestone 3 shows a pattern worth anchoring,
    and only when the server is quiet.
-5. **Blog post(s):** one post, or two (regional, then genome) if the regional result stands on its own.
+5. **Blog posts:** regional first; genome scale as a separate post later.
 
 Start only after the current long runs on the server have finished, and with the user's go for each launch.
 
 ## Blog: core figures (draft)
 
-1. Contig NG50 against library N50 at 30x (and 15x), with a dashed line for the Q100 truth.
+Regional post:
+1. The fraction of haplotypes assembled completely against library N50, at 20x and 30x, per window class.
+2. Read length against coverage: 20x at a long N50 next to 30x at a shorter one.
+3. Realistic phasing against the oracle ceiling: how much is lost to phasing.
+4. MAPT as the worked example: what each N50 gets you there.
+5. A compact table: N50 × coverage × window class (complete haplotypes, contigs, identity).
+
+Genome-scale post (later):
+1. Contig NG50 against library N50 at 20x and 30x, with a dashed line for the Q100 truth.
 2. Correctness: NGA50 and misassemblies per Gb against N50. Fragmented, or wrong?
-3. Regional: the fraction of haplotypes assembled completely against N50, per window class (plain, SD, TR) and
-   per phasing mode (oracle, realistic).
-4. Assembly-based against read-based SV F1 at the same N50, for insertions over 1 kb and for SDs.
-5. A compact table: N50 × coverage × (NG50, QV, switch error, complete haplotypes).
+3. Assembly-based against read-based SV F1 at the same N50, for insertions over 1 kb and for SDs.
 
 ## Risks and open questions
 
@@ -198,6 +231,8 @@ Start only after the current long runs on the server have finished, and with the
   That is a result, but don't spend compute below 5 kb.
 - **Assembling a chromosome subset** leaves out the reads of the rest of the genome. Report numbers relative to
   the matching whole-genome anchor, and never compare subset numbers with published genome assemblies.
+- **MAPT may not assemble at any N50.** Then that is the result: report how far each N50 gets (largest contig,
+  which copies collapse) rather than only complete or incomplete.
 - **Haplotype naming:** use Q100 mat/pat consistently. hifiasm hap1/hap2 are arbitrary, so assign them by
   alignment before scoring.
 - **Oracle phasing is optimistic by design.** Present it next to the realistic mode, never alone.
