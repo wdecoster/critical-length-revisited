@@ -11,6 +11,7 @@ include: "rules/resources.smk"
 include: "rules/inventory.smk"
 include: "rules/ladder.smk"
 include: "rules/pilot.smk"
+include: "rules/regional.smk"
 
 
 # Stage 1: data inventory, truth files, ladder steps 1-2
@@ -38,3 +39,9 @@ rule pilot:
 rule pilot_distributions:
     input:
         os.path.join(OUT, "pilot", "distributions.tsv"),
+
+
+# Assembly follow-up, regional arm (docs/assembly_plan.md): snakemake regional
+rule regional:
+    input:
+        os.path.join(OUT, "regional", "summary.tsv"),

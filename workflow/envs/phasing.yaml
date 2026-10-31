@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - whatshap>=2.8
+  - bcftools>=1.21
+  - samtools>=1.21
+  - htslib>=1.21
+  - minimap2=2.31
+  - python>=3.11
+  - pysam

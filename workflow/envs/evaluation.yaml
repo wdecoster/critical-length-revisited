@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+  - bioconda
+  - nodefaults
+dependencies:
+  - minimap2=2.31
+  - mappy>=2.28
+  - yak=0.1
+  - samtools>=1.21
+  - python>=3.11
+  - pandas>=2
+  - pysam

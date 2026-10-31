@@ -113,14 +113,15 @@ Chromosomes chr7 and chr20:
   mismap into the window are missed. Decide at implementation whether to use full B (shared with the genome
   arm) or this partner version.
 - **Haplotype assignment (realistic, main mode):** what a regional pipeline does:
-  - SNV calling (DeepVariant for R10) and SV calling (Sniffles2) in the window plus flanks;
-  - phasing with LongPhase `--ont`, with the SVs;
-  - haplotagging the pieces;
-  - untagged pieces (homozygous stretches) go to both haplotypes.
+  - SNV calling (DeepVariant, R10 model) in the window plus flanks;
+  - phasing of the PASS SNVs with WhatsHap, then `whatshap haplotag`;
+  - untagged pieces (homozygous stretches) go to both haplotypes;
+  - Flye per haplotype.
 
-  A regional pipeline across many samples can join phase blocks with population phasing. A single sample cannot,
-  so block switches remain. Optionally test joining blocks with a reference panel (SHAPEIT5 with the 1000 Genomes
-  panel; HG002 is not in it).
+  Implemented in milestone 1 without block joining: reads of different phase blocks keep their own block's
+  H1/H2, so an assembled haplotype can switch between blocks (measured as switch and Hamming errors). A regional
+  pipeline joins blocks with statistical phasing (SHAPEIT with `--use-PS` and a reference panel, here HPRC
+  without HG002); add this as a third mode once milestone 1 shows how often windows have more than one block.
 - **Oracle mode (ceiling only):** assign each piece to the Q100 haplotype it aligns to better; ambiguous pieces
   go to both.
 - **Assemblers, per haplotype:**
@@ -145,10 +146,10 @@ Chromosomes chr7 and chr20:
 | GFA to FASTA, contig stats | `gfatools gfa2fa`, `seqkit stats -a` / gfastats (count, N50, NG50, auN, largest, total) |
 | Correctness | QUAST (`--large`, against the matching Q100 haplotype): misassemblies, NGA50, duplication ratio; or minimap2 `-x asm5` + `paftools.js asmstat/misjoin` as a lighter cross-check |
 | Base accuracy | yak QV against Q100 k-mers (`yak count` on the Q100 haplotypes); Merqury as an alternative |
-| Phasing | yak `trioeval` with k-mers from the two Q100 haplotypes (stand-ins for the parents): switch and Hamming errors; phased block N50 from the contig assignments |
+| Phasing | yak `trioeval -c 1 -d 1` with k-mers from the two Q100 haplotypes of the window (stand-ins for the parents): switch and Hamming errors |
 | Gene completeness (optional) | compleasm on the chromosome subset or the whole genome |
 | Assembly SVs | dipcall (`-z200000,10000`, as GIAB) on hap1/hap2, then truvari with the GIAB setup + refine and the same stratification script |
-| Read phasing (Q5, realistic) | DeepVariant (R10 model) + Sniffles2 in the window; LongPhase `--ont` with SVs; `longphase haplotag` |
+| Read phasing (Q5, realistic) | DeepVariant 1.8.0 (ONT_R104) in the window; WhatsHap phase (SNVs) and haplotag |
 
 New conda environments are needed for hifiasm, flye, quast, yak, gfatools/seqkit and dipcall.
 

@@ -142,3 +142,50 @@ pilot:
   # alignments are deleted once called, except at these lengths (figures). Empty: the pilot's kept BAMs were
   # deleted (2026-10-28), figures can show slices of a rerun instead
   keep_bams_lengths: []
+
+# Assembly follow-up, regional arm (docs/assembly_plan.md, milestone 1). Windows of the genome are assembled per
+# haplotype from the reads that map there, the way regional pangenome pipelines do: DeepVariant SNVs, WhatsHap
+# phasing and haplotagging, untagged reads to both haplotypes, Flye per haplotype (hifiasm as the alternative).
+# Read selection: full-length reads aligned to the windows +/- margin or to the windows' SD partners elsewhere
+# are cut, the pieces aligned to the whole genome, and a window's reads are the pieces that land in it.
+# Truth: the matching HG002 Q100 haplotype sequence of each window (anchored on the window boundaries).
+# snakemake regional
+regional:
+  read_set: ulk
+  windows:
+    size: 500000
+    seed: 1
+    # windows per class (select_windows.py); milestone 1 is a small set for plumbing and timing
+    classes: {plain: 2, segdup: 1, tandem_repeat: 1, large_insertion: 0}
+    # named windows, as chrom:start-end (GRCh38). MAPT: the 17q21.31 inversion region with its flanking LRRC37A
+    # segmental duplications, approximate; check against the SD annotation and the truth anchors
+    named:
+      MAPT: chr17:45500000-46850000
+  # reads overlapping a window +/- flank are assembled; the truth is the window itself
+  flank: 50000
+  # full-length parent reads: aligned to the windows +/- margin, or to their SD partners elsewhere
+  selection_margin: 1000000
+  # conditions: library N50s (standard shape, as the SV post) and fixed lengths; coverages per sample, the
+  # lower ones subsampled from the alignment of the highest
+  n50s: [10000, 30000]
+  shape: standard
+  lengths: []
+  coverages: [30]
+  seeds: [1]
+  oversample: 1.8
+  # haplotype assignment: realistic (DeepVariant + WhatsHap + haplotag) and oracle (pieces assigned to the truth
+  # haplotype they align to best; a ceiling)
+  modes: [realistic, oracle]
+  # haploid per-haplotype assemblers, plus hifiasm diploid on all reads of the window (mode 'diploid')
+  assemblers: [flye, hifiasm]
+  diploid: true
+  flye_extra: "--no-alt-contigs"
+  hifiasm_extra: "-l0"
+  min_read_length: 1000
+  deepvariant_container: docker://google/deepvariant:1.8.0
+  deepvariant_model: ONT_R104
+  # a haplotype is complete when one contig covers >= this fraction of its truth window
+  complete_fraction: 0.95
+  # truth anchors: reference sequence just outside each window boundary, moved outward in steps when not unique
+  anchor_length: 5000
+  anchor_steps: [0, 10000, 25000, 50000, 100000]
