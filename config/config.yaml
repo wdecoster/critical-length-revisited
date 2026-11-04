@@ -155,8 +155,9 @@ regional:
   windows:
     size: 500000
     seed: 1
-    # windows per class (select_windows.py); milestone 1 is a small set for plumbing and timing
-    classes: {plain: 2, segdup: 1, tandem_repeat: 1, large_insertion: 0}
+    # windows per class (select_windows.py). Milestone 1 (plumbing and timing): plain 2, segdup 1, tandem_repeat 1.
+    # Milestone 2 (the regional arm, docs/assembly_plan.md): ~70 windows plus MAPT
+    classes: {plain: 20, segdup: 20, tandem_repeat: 15, large_insertion: 15}
     # named windows, as chrom:start-end (GRCh38). MAPT: the 17q21.31 inversion region with its flanking LRRC37A
     # segmental duplications, approximate; check against the SD annotation and the truth anchors
     named:
@@ -167,10 +168,12 @@ regional:
   selection_margin: 1000000
   # conditions: library N50s (standard shape, as the SV post) and fixed lengths; coverages per sample, the
   # lower ones subsampled from the alignment of the highest
-  n50s: [10000, 30000]
+  # milestone 2 grid (docs/assembly_plan.md): N50 5-50 kb, fixed lengths 10-100 kb, 20x and 30x. Fixed 100 kb
+  # reaches only ~28x of the data: at 30x it runs at the coverage reached (column achieved_coverage)
+  n50s: [5000, 10000, 20000, 30000, 50000]
   shape: standard
-  lengths: []
-  coverages: [30]
+  lengths: [10000, 20000, 50000, 100000]
+  coverages: [20, 30]
   seeds: [1]
   oversample: 1.8
   # haplotype assignment: realistic (DeepVariant + WhatsHap + haplotag) and oracle (pieces assigned to the truth
