@@ -1,7 +1,10 @@
 """Oracle haplotype assignment: each read goes to the truth haplotype (window +/- flank) it aligns to best
 (matching bases minus edit distance, over its primary alignments; minimap2 lr:hq via mappy). Ties, and reads that
 align to neither, go to both haplotypes (as untagged reads in the realistic mode). Reads shorter than
---min-length are dropped."""
+--min-length are dropped.
+Windows without a truth sequence for a haplotype (truth anchors not found: window_truth.py) have no oracle: both
+read sets are written empty and the assignments file says why, so the oracle assemblies of that window are empty
+and reported as such instead of failing the run."""
 
 import argparse
 import gzip
@@ -29,11 +32,15 @@ def score(aligner, seq):
 
 def main():
     args = parse_args()
-    aligners = []
-    for path in (args.hap1, args.hap2):
-        if not open(path).read(1):  # no truth for this haplotype: no oracle possible
-            raise SystemExit(f"empty truth {path}")
-        aligners.append(mappy.Aligner(path, preset="lr:hq", n_threads=args.threads))
+    missing = [path for path in (args.hap1, args.hap2) if not open(path).read(1)]
+    if missing:  # no truth for a haplotype: no oracle possible for this window
+        for output in (args.output1, args.output2):
+            gzip.open(output, "wt").close()
+        with open(args.assignments, "w") as table:
+            table.write(f"# no oracle: empty truth {', '.join(missing)}\n")
+        print(f"no oracle: empty truth {', '.join(missing)}")
+        return
+    aligners = [mappy.Aligner(path, preset="lr:hq", n_threads=args.threads) for path in (args.hap1, args.hap2)]
     counts = {"1": 0, "2": 0, "both": 0}
     with gzip.open(args.output1, "wt") as out1, gzip.open(args.output2, "wt") as out2, \
             open(args.assignments, "w") as table:
