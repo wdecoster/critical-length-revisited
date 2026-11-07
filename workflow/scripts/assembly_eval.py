@@ -1,7 +1,9 @@
 """Evaluation of one assembled haplotype of a window against the two truth haplotypes (one row, TSV).
 
 - Contigs: count, total length, largest, N50.
-- Per truth haplotype (from minimap2 asm5 PAFs of the contigs against it, primary chains >= 1 kb): the fraction
+- Per truth haplotype (from minimap2 asm5 PAFs of the contigs against it, primary chains >= 1 kb, each truth base scored once: chains are taken longest first and one that
+  lands >= --max-overlap on truth already taken is dropped, e.g. contig flanks beyond the window aligning onto a
+  repeat copy inside it): the fraction
   of the truth covered by all contigs, by the best single contig, and the identity of the aligned bases (matches
   / alignment block length), as QV. The truth haplotype the assembly matches is the one with the larger
   identity (then single-contig coverage, then coverage); the other gives the haplotype specificity.
@@ -61,18 +63,29 @@ def union(intervals):
     return total
 
 
-def against(paf, truth_len, min_block):
-    per_contig, matches, block = defaultdict(list), 0, 0
+def overlap(iv, taken):
+    """bp of interval iv covered by the taken intervals"""
+    return union([(max(iv[0], s), min(iv[1], e)) for s, e in taken if s < iv[1] and e > iv[0]])
+
+
+def against(paf, truth_len, min_block, max_overlap=0.5):
+    chains = []
     with open(paf) as fh:
         for line in fh:
             f = line.rstrip("\n").split("\t")
             if len(f) < 12 or "tp:A:P" not in f[12:] or int(f[10]) < min_block:
                 continue
-            per_contig[f[0]].append((int(f[7]), int(f[8])))
-            matches += int(f[9])
-            block += int(f[10])
+            chains.append((f[0], int(f[7]), int(f[8]), int(f[9]), int(f[10])))
     if not truth_len:
         return None
+    per_contig, matches, block, taken = defaultdict(list), 0, 0, []
+    for contig, s, e, m, b in sorted(chains, key=lambda c: -c[4]):
+        if overlap((s, e), taken) > max_overlap * (e - s):
+            continue
+        taken.append((s, e))
+        per_contig[contig].append((s, e))
+        matches += m
+        block += b
     covered = union([iv for ivs in per_contig.values() for iv in ivs]) / truth_len
     single = max((union(ivs) for ivs in per_contig.values()), default=0) / truth_len
     identity = matches / block if block else float("nan")

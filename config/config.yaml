@@ -175,6 +175,8 @@ regional:
   lengths: [10000, 20000, 50000, 100000]
   coverages: [20, 30]
   seeds: [1]
+  # replicate cuts to measure the noise (docs/assembly_plan.md): more seeds at these library N50s, all coverages
+  replicates: {seeds: [2], n50s: [20000]}
   oversample: 1.8
   # haplotype assignment: realistic (DeepVariant + WhatsHap + haplotag) and oracle (pieces assigned to the truth
   # haplotype they align to best; a ceiling)
@@ -191,4 +193,6 @@ regional:
   complete_fraction: 0.95
   # truth anchors: reference sequence just outside each window boundary, moved outward in steps when not unique
   anchor_length: 5000
-  anchor_steps: [0, 10000, 25000, 50000, 100000]
+  # (offsets on both sides are combined; the larger ones for segmental duplications whose nearest unique anchor is
+  # on an inverted paralog copy)
+  anchor_steps: [0, 10000, 25000, 50000, 100000, 150000, 200000, 300000]

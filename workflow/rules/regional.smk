@@ -40,11 +40,18 @@ def regional_assemblies():
     return pairs + ([("diploid", "hifiasm")] if REG["diploid"] else [])
 
 
+def regional_conditions():
+    """(length, seed) pairs: every length at the main seeds, plus the replicate seeds at their N50s"""
+    pairs = [(length, seed) for length in regional_lengths() for seed in REG["seeds"]]
+    rep = REG.get("replicates") or {}
+    pairs += [(f"N{n}{REG['shape']}", seed) for n in rep.get("n50s", []) for seed in rep.get("seeds", [])]
+    return list(dict.fromkeys(pairs))
+
+
 def regional_evaluations(wildcards):
     return [
         os.path.join(REG_DIR, f"L{length}", f"s{seed}", f"{coverage}x", window, mode, f"{assembler}.hap{h}.eval.tsv")
-        for length in regional_lengths()
-        for seed in REG["seeds"]
+        for length, seed in regional_conditions()
         for coverage in REG["coverages"]
         for window in regional_windows()
         for mode, assembler in regional_assemblies()

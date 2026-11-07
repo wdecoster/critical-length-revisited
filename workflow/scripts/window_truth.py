@@ -2,9 +2,11 @@
 
 Each window boundary is anchored by --anchor-length bp of reference sequence just outside it (left of the start,
 right of the end), aligned to the haplotype (minimap2 asm5 via mappy). An anchor must align uniquely (MAPQ >= 30,
->= 90% of its length); if not, it is moved outward by the next --steps offset and the boundary moves with it.
-Both anchors must land on the same contig and strand, in order, with a haplotype span of 0.5-2x the reference
-span. The stretch between them is written in reference orientation.
+>= 90% of its length) on the window's own chromosome (contig names chrN_...); the boundary moves outward with the
+anchor's --steps offset. Both anchors must land on the same contig and strand, in order, with a haplotype span of
+0.5-2x the reference span: of the unique anchors at all offsets, the consistent pair with the smallest combined
+offset is used (in segmental duplications the nearest unique anchor can sit on an inverted paralog copy). The
+stretch between them is written in reference orientation.
 
 Per window two truths are written: the window itself (scoring) and the window +/- --flank (assigning reads to
 haplotypes in the oracle mode). Output: <outdir>/<window>.<core|extended>.hap<1|2>.fa and a status table.
@@ -42,10 +44,11 @@ def unique_hit(aligner, seq):
     return hit
 
 
-def anchor(aligner, reference, chrom, boundary, side, length, steps):
-    """(reference boundary, hit, haplotype position of the boundary) for the first unique anchor, or None.
-    side 'start': the anchor is left of the boundary; 'end': right of it."""
+def anchors(aligner, reference, chrom, boundary, side, length, steps):
+    """[(step, reference boundary, hit, haplotype position of the boundary)] for every offset whose anchor aligns
+    uniquely on chrom. side 'start': the anchor is left of the boundary; 'end': right of it."""
     chrom_len = reference.get_reference_length(chrom)
+    out = []
     for step in steps:
         if side == "start":
             pos = boundary - step
@@ -59,35 +62,48 @@ def anchor(aligner, reference, chrom, boundary, side, length, steps):
         if seq.count("N") > 0.1 * length:
             continue
         hit = unique_hit(aligner, seq)
-        if hit is None:
+        if hit is None or hit.ctg.split("_")[0] != chrom:
             continue
         # haplotype coordinate of the boundary (the anchor's inner end)
         if side == "start":
             hap_pos = hit.r_en + (length - hit.q_en) if hit.strand == 1 else hit.r_st - (length - hit.q_en)
         else:
             hap_pos = hit.r_st - hit.q_st if hit.strand == 1 else hit.r_en + hit.q_st
-        return pos, hit, hap_pos
-    return None
+        out.append((step, pos, hit, hap_pos))
+    return out
+
+
+def pair(lefts, rights):
+    """The consistent (left, right) anchor pair with the smallest combined offset, and a status"""
+    if not lefts or not rights:
+        return None, "anchor not unique" + (" (start)" if not lefts else " (end)")
+    status = "anchors on different contigs or strands"
+    for left, right in sorted(((l, r) for l in lefts for r in rights), key=lambda lr: lr[0][0] + lr[1][0]):
+        (_, ref_start, lhit, lpos), (_, ref_end, rhit, rpos) = left, right
+        if lhit.ctg != rhit.ctg or lhit.strand != rhit.strand:
+            continue
+        lo, hi = (lpos, rpos) if lhit.strand == 1 else (rpos, lpos)
+        if hi <= lo:
+            status = "anchors out of order"
+            continue
+        if not 0.5 <= (hi - lo) / (ref_end - ref_start) <= 2:
+            status = f"haplotype span {hi - lo} vs reference {ref_end - ref_start}"
+            continue
+        return (ref_start, ref_end, lhit, lo, hi), "ok"
+    return None, status
 
 
 def extract(aligner, haplotype, reference, chrom, start, end, args):
-    left = anchor(aligner, reference, chrom, start, "start", args.anchor_length, args.steps)
-    right = anchor(aligner, reference, chrom, end, "end", args.anchor_length, args.steps)
-    if left is None or right is None:
-        return None, "anchor not unique" + (" (start)" if left is None else " (end)")
-    (ref_start, lhit, lpos), (ref_end, rhit, rpos) = left, right
-    if lhit.ctg != rhit.ctg or lhit.strand != rhit.strand:
-        return None, "anchors on different contigs or strands"
-    lo, hi = (lpos, rpos) if lhit.strand == 1 else (rpos, lpos)
-    if hi <= lo:
-        return None, "anchors out of order"
-    ratio = (hi - lo) / (ref_end - ref_start)
-    if not 0.5 <= ratio <= 2:
-        return None, f"haplotype span {hi - lo} vs reference {ref_end - ref_start}"
-    seq = haplotype.fetch(lhit.ctg, max(0, lo), hi)
-    if lhit.strand == -1:
+    lefts = anchors(aligner, reference, chrom, start, "start", args.anchor_length, args.steps)
+    rights = anchors(aligner, reference, chrom, end, "end", args.anchor_length, args.steps)
+    found, status = pair(lefts, rights)
+    if found is None:
+        return None, status
+    ref_start, ref_end, hit, lo, hi = found
+    seq = haplotype.fetch(hit.ctg, max(0, lo), hi)
+    if hit.strand == -1:
         seq = mappy.revcomp(seq)
-    return (seq, ref_start, ref_end, lhit.ctg, lo, hi, lhit.strand), "ok"
+    return (seq, ref_start, ref_end, hit.ctg, lo, hi, hit.strand), "ok"
 
 
 def main():
