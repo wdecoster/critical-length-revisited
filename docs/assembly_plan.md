@@ -241,3 +241,22 @@ Genome-scale post (later):
   mapping to the other haplotype as an error class.
 - **Repository goes public:** no sample IDs, no server paths, and no mention of any in-house cohort. Use generic
   wording only (regional pangenome studies).
+
+## Progress log
+
+- **2026-10-31** Milestone 1 built (3a2eb02): window selection, read selection via a one-time position map, realistic
+  (DeepVariant + WhatsHap), oracle and diploid read splitting, Flye/hifiasm per haplotype, evaluation against the
+  HG002 Q100 haplotypes of each window.
+- **2026-11-04** Milestone 2 configured (24ec459): ~70 windows + MAPT, N50 5-50 kb, fixed lengths 10-100 kb, 20x and 30x.
+- **2026-11-07** Evaluation fixes found while milestone 2 ran (671d001), both in the evaluation, not the assemblies:
+  - one plain window's QV was stuck at ~29 because contigs running past the window carried copies of a ~6 kb repeat
+    inside it and every copy was scored; each truth base is now scored once (QV 29 -> 40-42 on that window);
+  - four segmental-duplication windows had no truth because the nearest unique anchor sat on a paralog (sometimes
+    inverted); anchors must now land on the window's own chromosome, offsets on both sides are paired, longer offsets
+    were added. All 284 window truths were built after the fix.
+  - A second random seed at 20 kb N50 was added as a replicate.
+- **2026-11-09** Milestone 2 finished (25,553 jobs, no errors). Follow-up run started: re-evaluation of all
+  assemblies with the fixed scoring, oracle reads for all windows (the rebuilt truth counts as new input), the
+  seed-2 replicate (22,582 jobs). Note: `snakemake --until` did not restrict the run to the truth stage here.
+- **Next:** regional summary; report the QV fix, the segmental-duplication windows and the seed-2 replicate.
+
