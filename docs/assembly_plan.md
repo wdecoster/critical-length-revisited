@@ -268,6 +268,7 @@ Genome-scale post (later):
   trigger as well selected the same jobs).
 - **2026-11-12** Every Flye assembly at fixed 10 kb (568 of 568, milestone 2 and the follow-up run) had failed and
   was counted as an empty assembly; all other conditions together had 6 failures. Cause and fix: Decisions 8. The
-  10 kb Flye assemblies are rerun; earlier 10 kb Flye results are void.
+  10 kb Flye assemblies are rerun; earlier 10 kb Flye results are void. Follow-up run restarted with the fix (13,205 jobs, the 10 kb Flye
+  assemblies forced).
 - **Next:** regional summary; report the QV fix, the segmental-duplication windows and the seed-2 replicate.
 
