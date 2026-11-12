@@ -17,6 +17,10 @@ gating".
 6. **Coverage:** 20x and 30x per sample, for both arms. 15x per sample is too low for reliable regional assembly
    in practice. 20x and 30x also show when read length beats coverage and when it does not.
 7. **Data:** the pilot data stay (no deletions).
+8. **Flye minimum overlap at fixed lengths <= 10 kb** (2026-11-12): half the read length (`--min-overlap 5000` at
+   10 kb). Flye's automatic choice tops out at 10 kb, which reads of exactly 10 kb can never reach; all such
+   assemblies failed (Flye 2.9.6 divides by zero with no overlaps). Every other condition keeps Flye's automatic
+   choice. The regional summary now stops when a whole condition has no contigs.
 
 The SV post answered "how long should reads be for read-based SV discovery?". This follow-up asks the same
 question for de novo assembly, which is a different problem. Assembly also needs coverage for error correction.
@@ -262,5 +266,8 @@ Genome-scale post (later):
   Restarted 2026-11-12 with timestamp triggers and `--rerun-incomplete`: 13,142 jobs, exactly the remaining ones (the
   rebuilt truth is newer than the evaluations not yet redone, so timestamps alone select them; a dry run with the code
   trigger as well selected the same jobs).
+- **2026-11-12** Every Flye assembly at fixed 10 kb (568 of 568, milestone 2 and the follow-up run) had failed and
+  was counted as an empty assembly; all other conditions together had 6 failures. Cause and fix: Decisions 8. The
+  10 kb Flye assemblies are rerun; earlier 10 kb Flye results are void.
 - **Next:** regional summary; report the QV fix, the segmental-duplication windows and the seed-2 replicate.
 

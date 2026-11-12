@@ -436,7 +436,8 @@ rule oracle_reads:
 
 rule assemble_haploid:
     """One haplotype's reads assembled on their own (Flye --nano-hq, or hifiasm --ont haploid). A failed
-    assembly (too few reads) gives an empty FASTA, reported as such."""
+    assembly (too few reads) gives an empty FASTA, reported as such; regional_summary stops if a whole condition
+    comes out empty (a systematic failure, not a hard window)."""
     input:
         reads=os.path.join(WIN, "{mode}", "hap{h}.fastq.gz"),
         windows=rules.regional_windows.output.tsv,
@@ -447,6 +448,10 @@ rule assemble_haploid:
     params:
         flank=REG["flank"],
         flye=REG["flye_extra"],
+        # fixed read lengths <= 10 kb: Flye's automatic minimum overlap is 10 kb at most, which reads of exactly
+        # 10 kb can never reach (no overlaps; Flye 2.9.6 crashes with a division by zero); half the read length
+        min_overlap=lambda wc: (f"--min-overlap {int(wc.length) // 2}"
+                                if wc.length.isdigit() and int(wc.length) <= 10000 else ""),
         hifiasm=REG["hifiasm_extra"],
         workdir=lambda wc, output: output[0].removesuffix(".fa") + "_work",
     threads: 4
@@ -462,9 +467,10 @@ rule assemble_haploid:
         """
         size=$(awk -F '\\t' -v w={wildcards.window} -v f={params.flank} '$1 == w {{print $4 - $3 + 2 * f}}' {input.windows})
         rm -rf {params.workdir} && mkdir -p {params.workdir}
+        ulimit -c 0  # no core dumps from assemblers that give up on a window
         if [ "{wildcards.assembler}" = "flye" ]; then
             flye --nano-hq {input.reads} --out-dir {params.workdir} --genome-size $size --threads {threads} \
-              {params.flye} &> {log} || true
+              {params.min_overlap} {params.flye} &> {log} || true
             cp {params.workdir}/assembly.fasta {output} 2>> {log} || touch {output}
         else
             hifiasm --ont -o {params.workdir}/asm -t {threads} {params.hifiasm} {input.reads} &> {log} || true
@@ -561,7 +567,6 @@ rule regional_summary:
         os.path.join(LOGS, "regional", "summary.log"),
     shell:
         """
-        python -c "import sys, pandas as pd; w = pd.read_table(sys.argv[2]).rename(columns={{'name': 'window'}}); \
-pd.concat(pd.read_table(f) for f in sys.argv[3:]).merge(w, on='window', how='left').to_csv(sys.argv[1], sep='\\t', index=False)" \
-          {output} {input.windows} {input.evaluations} &> {log}
+        python {SCRIPTS}/regional_summary.py --output {output} --windows {input.windows} \
+          --evaluations {input.evaluations} &> {log}
         """
