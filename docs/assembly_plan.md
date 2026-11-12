@@ -258,5 +258,8 @@ Genome-scale post (later):
 - **2026-11-09** Milestone 2 finished (25,553 jobs, no errors). Follow-up run started: re-evaluation of all
   assemblies with the fixed scoring, oracle reads for all windows (the rebuilt truth counts as new input), the
   seed-2 replicate (22,582 jobs). Note: `snakemake --until` did not restrict the run to the truth stage here.
+- **2026-11-11** The follow-up run stopped at 42% (9,440 of 22,582 jobs, no errors) when the server rebooted at 17:04.
+  Restart pending: re-evaluations not yet redone must still be forced (plain timestamp checks would keep their old
+  outputs).
 - **Next:** regional summary; report the QV fix, the segmental-duplication windows and the seed-2 replicate.
 
